@@ -143,15 +143,14 @@ def get_pages(spaces_dict: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def get_content(_page_id: str) -> tuple[bool, dict[Any, Any]]:
-    if type(_page_id) != uuid.UUID:
-        try:
-            _page_id = uuid.UUID(_page_id)
-        except ValueError:
-            return False, {
-                "error": "Invalid page_id type",
-                "message": "Encountered incorrect page_id key type in _page_id, expected str(uuid.UUID)",
-                "value": f"{_page_id}",
-            }
+    try:
+        _page_id = uuid.UUID(_page_id)
+    except ValueError:
+        return err(
+            INVALID_INPUT,
+            message="We found a UUID error value for _page_id where it was not allowed",
+            value=f"{_page_id}",
+        )
 
     sql = """
         SELECT id, space_id, title, parent_page_id, creator_id, created_at, updated_at, text_content
@@ -167,23 +166,52 @@ def get_content(_page_id: str) -> tuple[bool, dict[Any, Any]]:
             cur.execute(sql, (params,))
             row = cur.fetchone()
             if row:
-                __content = refactor_content(row["text_content"])
-                __space_id = str(row["space_id"])
-                __page_id = str(row["id"])
+                __space_id = str(row.get("space_id")) if row.get("space_id", None) else None
+                __page_id = str(row["id"]) if row.get("id", None) else None
+                __title = str(row["title"]) if row.get("title", None) else None
+                __parent_page_id = str(row["parent_page_id"]) if row.get("parent_page_id", None) else None
+                __creator_id = str(row["creator_id"]) if row.get("creator_id", None) else None
+                __created_at = row.get("created_at", None)
+                __updated_at = row.get("updated_at", None)
+                __text_content = refactor_content(row.get("text_content")) if row.get("text_content", None) else None
+
+                if None in [__space_id, __page_id, __title, __parent_page_id, __creator_id, __created_at, __updated_at, __text_content]:
+                    err(
+                        INVALID_INPUT,
+                        message="We found a None error value for content where it was not allowed",
+                        value=f"{
+                        __space_id,
+                        __page_id,
+                        __title,
+                        __parent_page_id,
+                        __creator_id,
+                        __created_at,
+                        __updated_at,
+                        __text_content
+                        }"
+                    )
 
                 output = {
                     __space_id: {
                         __page_id: {
-
+                            "title": __title,
+                            "parent_page_id": __parent_page_id,
+                            "creator_id": __creator_id,
+                            "created_at": __created_at,
+                            "updated_at": __updated_at,
+                            "text_content": __text_content
                         }
                     }
                 }
 
-                output[__space_id][__page_id]["text_content"] = __content
-                return output
+                return ok(output)
             else:
                 # TODO verify that we are not intending to build a replacement dict as empty output
-                return None
+                return err(
+                    INVALID_INPUT,
+                    message="Could not find a row for the page id provided",
+                    value=f"{_page_id}"
+                )
 
 def get_contents(
         pages_by_space: Optional[Dict[str, Any]] = None, *, space_id: Optional[str] = None,
