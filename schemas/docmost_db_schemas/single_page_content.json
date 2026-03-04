@@ -2,11 +2,11 @@
   "uuid": {
     "uuid": {
       "string1": "string",
-      "string2": "uuid",
       "string3": "uuid",
-      "string4": "datetime",
+      "string4": "uuid",
       "string5": "datetime",
-      "string6": "string"
+      "string6": "datetime",
+      "string7": "string"
     }
   }
 }
