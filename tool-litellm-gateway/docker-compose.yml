@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main
+    container_name: litellm-gateway
+    command: ["--config", "/app/litellm_config.yaml", "--port", "4000", "--host", "0.0.0.0"]
+    volumes:
+      - ./litellm_config.yaml:/app/litellm_config.yaml
+    ports:
+      - "4000:4000"
+    restart: unless-stopped
+
+  tool-gateway:
+    image: python:3.12-slim
+    container_name: ai-tool-gateway
+    working_dir: /app
+    volumes:
+      - ./tool_gateway.py:/app/tool_gateway.py
+    command: >
+      sh -c "
+      pip install fastapi uvicorn requests duckduckgo-search &&
+      uvicorn tool_gateway:app --host 0.0.0.0 --port 4100
+      "
+    ports:
+      - "4100:4100"
+    restart: unless-stopped
