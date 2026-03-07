@@ -105,6 +105,7 @@ def chat(req: ChatRequest):
         action = parsed.get("action")
 
         if action == "final":
+            print(parsed)
             return {
                 "ok": True,
                 "answer": parsed.get("answer", ""),
