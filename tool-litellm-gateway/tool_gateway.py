@@ -22,9 +22,9 @@ class ChatRequest(BaseModel):
 
 
 def archon_search(query: str):
-    r = requests.get(
-        f"{ARCHON_BASE_URL}/search",
-        params={"query": query},
+    r = requests.post(
+        f"{ARCHON_BASE_URL}/api/knowledge-items/search",
+        json={"query": query},
         timeout=20,
     )
     r.raise_for_status()
@@ -33,7 +33,17 @@ def archon_search(query: str):
 
 def archon_store(data: dict):
     r = requests.post(
-        f"{ARCHON_BASE_URL}/store",
+        f"{ARCHON_BASE_URL}/api/documents/upload",
+        json=data,
+        timeout=20,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def archon_rag_query(data: dict):
+    r = requests.post(
+        f"{ARCHON_BASE_URL}/api/rag/query",
         json=data,
         timeout=20,
     )
@@ -52,6 +62,9 @@ def run_tool(tool_name: str, arguments: dict):
 
     if tool_name == "archon_store":
         return archon_store(arguments)
+
+    if tool_name == "archon_rag_query":
+        return archon_rag_query(arguments)
 
     if tool_name == "web_search":
         return web_search(arguments.get("query", ""))
@@ -81,7 +94,12 @@ Available tools:
      "note": "string"
    }
 
-3. web_search
+3. archon_rag_query
+   Arguments:
+   {
+   }
+
+4. web_search
    Arguments:
    {
      "query": "string"
@@ -150,6 +168,11 @@ def http_archon_search(q: str):
 @app.post("/archon_store")
 def http_archon_store(data: dict):
     return archon_store(data)
+
+
+@app.post("/archon_rag_query")
+def http_archon_rag_query(data: dict):
+    return archon_rag_query(data)
 
 
 @app.get("/web_search")
