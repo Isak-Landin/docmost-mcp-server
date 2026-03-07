@@ -4,14 +4,12 @@ import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import requests
-from duckduckgo_search import DDGS
+
+from archon.archon import archon_search, archon_rag_query
+from web_search.web_search import web_search
+from ollama.ollama_client import call_ollama, parse_model_output
 
 
-ARCHON_BASE_URL = os.getenv("ARCHON_BASE_URL", "http://archon:3737")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "seamon67/Ministral-3-Reasoning:14b")
-
-WEB_SEARCH_MAX_RESULTS = int(os.getenv("WEB_SEARCH_MAX_RESULTS", "5"))
 MAX_TOOL_LOOPS = int(os.getenv("MAX_TOOL_LOOPS", "5"))
 
 app = FastAPI()
@@ -21,50 +19,22 @@ class ChatRequest(BaseModel):
     message: str
 
 
-def archon_search(query: str):
-    r = requests.post(
-        f"{ARCHON_BASE_URL}/api/knowledge-items/search",
-        json={"query": query},
-        timeout=20,
-    )
-    r.raise_for_status()
-    return r.json()
-
-
-def archon_store(data: dict):
-    r = requests.post(
-        f"{ARCHON_BASE_URL}/api/documents/upload",
-        json=data,
-        timeout=20,
-    )
-    r.raise_for_status()
-    return r.json()
-
-
-def archon_rag_query(data: dict):
-    r = requests.post(
-        f"{ARCHON_BASE_URL}/api/rag/query",
-        json=data,
-        timeout=20,
-    )
-    r.raise_for_status()
-    return r.json()
-
-
-def web_search(query: str):
-    with DDGS() as ddgs:
-        return list(ddgs.text(query, max_results=WEB_SEARCH_MAX_RESULTS))
-
-
 def run_tool(tool_name: str, arguments: dict):
     if tool_name == "archon_search":
-        return archon_search(arguments.get("query", ""))
-
-    if tool_name == "archon_store":
-        return archon_store(arguments)
+        return archon_search(
+            query=arguments.get("query", ""),
+            source=arguments.get("source", ""),
+            match_count=arguments.get("match_count", 5),
+            return_mode=arguments.get("return_mode", "chunks"),
+        )
 
     if tool_name == "archon_rag_query":
-        return archon_rag_query(arguments)
+        return archon_rag_query(
+            query=arguments.get("query", ""),
+            source=arguments.get("source", ""),
+            match_count=arguments.get("match_count", 5),
+            return_mode=arguments.get("return_mode", "chunks"),
+        )
 
     if tool_name == "web_search":
         return web_search(arguments.get("query", ""))
@@ -76,103 +46,29 @@ def run_tool(tool_name: str, arguments: dict):
     }
 
 
-def build_system_prompt() -> str:
-    return """
-You are an assistant with access to tools.
-
-Available tools:
-1. archon_search
-   Arguments:
-   {
-     "query": "string"
-   }
-
-2. archon_store
-   Arguments:
-   {
-     "project": "string",
-     "note": "string"
-   }
-
-3. archon_rag_query
-   Arguments:
-   {
-   }
-
-4. web_search
-   Arguments:
-   {
-     "query": "string"
-   }
-
-Rules:
-- Always return valid JSON only.
-- If you need a tool, respond exactly like this:
-  {
-    "action": "tool",
-    "tool_name": "archon_search",
-    "arguments": {
-      "query": "example query"
-    }
-  }
-
-- If you do not need a tool, respond exactly like this:
-  {
-    "action": "final",
-    "answer": "your final answer here"
-  }
-
-- After a tool result is provided, either request another tool or return a final answer.
-- Never output markdown.
-- Never output explanations outside the JSON.
-""".strip()
-
-
-def call_ollama(messages: list[dict]):
-    payload = {
-        "model": OLLAMA_MODEL,
-        "messages": messages,
-        "stream": False,
-    }
-
-    r = requests.post(
-        f"{OLLAMA_BASE_URL}/api/chat",
-        json=payload,
-        timeout=120,
-    )
-
-    if not r.ok:
-        print("OLLAMA STATUS:", r.status_code, flush=True)
-        print("OLLAMA BODY:", r.text, flush=True)
-        r.raise_for_status()
-
-    data = r.json()
-    return data["message"]["content"]
-
-
-def parse_model_output(text: str):
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return {
-            "action": "final",
-            "answer": text,
-        }
-
-
 @app.get("/archon_search")
-def http_archon_search(q: str):
-    return archon_search(q)
-
-
-@app.post("/archon_store")
-def http_archon_store(data: dict):
-    return archon_store(data)
+def http_archon_search(
+    q: str,
+    source: str = "",
+    match_count: int = 5,
+    return_mode: str = "chunks",
+):
+    return archon_search(
+        query=q,
+        source=source,
+        match_count=match_count,
+        return_mode=return_mode,
+    )
 
 
 @app.post("/archon_rag_query")
 def http_archon_rag_query(data: dict):
-    return archon_rag_query(data)
+    return archon_rag_query(
+        query=data.get("query", ""),
+        source=data.get("source", ""),
+        match_count=data.get("match_count", 5),
+        return_mode=data.get("return_mode", "chunks"),
+    )
 
 
 @app.get("/web_search")
@@ -182,32 +78,33 @@ def http_web_search(q: str):
 
 @app.post("/chat")
 def chat(req: ChatRequest):
-    messages = [
-        {"role": "system", "content": build_system_prompt()},
-        {"role": "user", "content": req.message},
-    ]
+    history: list[dict] = []
 
     for _ in range(MAX_TOOL_LOOPS):
         try:
-            model_text = call_ollama(messages)
+            ollama_data = call_ollama(
+                user_message=req.message,
+                history=history,
+            )
         except requests.RequestException as e:
             raise HTTPException(status_code=500, detail=f"ollama_request_failed: {str(e)}")
 
-        parsed = parse_model_output(model_text)
+        parsed = parse_model_output(ollama_data)
         action = parsed.get("action")
 
         if action == "final":
             return {
                 "ok": True,
                 "answer": parsed.get("answer", ""),
-                "messages": messages,
+                "messages": history,
+                "ollama_response": ollama_data,
             }
 
         if action != "tool":
             return {
                 "ok": False,
                 "error": "invalid_model_action",
-                "raw_output": model_text,
+                "raw_output": ollama_data,
             }
 
         tool_name = parsed.get("tool_name", "")
@@ -216,8 +113,8 @@ def chat(req: ChatRequest):
         try:
             tool_result = run_tool(tool_name, arguments)
         except requests.RequestException as e:
-            print(f"OLLAMA REQUEST FAILED: {e}", flush=True)
-            raise HTTPException(status_code=500, detail=f"ollama_request_failed: {str(e)}")
+            print(f"REQUEST FAILED: {e}", flush=True)
+            raise HTTPException(status_code=500, detail=f"tool_request_failed: {str(e)}")
         except Exception as e:
             tool_result = {
                 "error": "tool_runtime_failed",
@@ -225,18 +122,16 @@ def chat(req: ChatRequest):
                 "message": str(e),
             }
 
-        messages.append({"role": "assistant", "content": model_text})
-        messages.append({
-            "role": "user",
-            "content": json.dumps(
-                {
-                    "tool_result_for": tool_name,
-                    "tool_arguments": arguments,
-                    "tool_output": tool_result,
-                },
-                ensure_ascii=False,
-            ),
-        })
+        assistant_message = ollama_data.get("message", {})
+
+        history.append(assistant_message)
+        history.append(
+            {
+                "role": "tool",
+                "name": tool_name,
+                "content": json.dumps(tool_result, ensure_ascii=False),
+            }
+        )
 
     return {
         "ok": False,
