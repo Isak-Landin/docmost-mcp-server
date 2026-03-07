@@ -106,6 +106,7 @@ def chat(req: ChatRequest):
 
         if action == "final":
             print(parsed)
+            print(ollama_data)
             return {
                 "ok": True,
                 "answer": parsed.get("answer", ""),
