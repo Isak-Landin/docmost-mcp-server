@@ -22,6 +22,7 @@ def build_messages(user_message: str, history: list[dict] | None = None) -> list
 
     if history:
         messages.extend(history)
+        return messages
 
     messages.append(
         {
@@ -34,18 +35,10 @@ def build_messages(user_message: str, history: list[dict] | None = None) -> list
 
 
 def build_chat_payload(model: str, user_message: str, history: list[dict] | None = None) -> dict:
-    # TODO Checking if tools is the reason for no response
-    """
     payload = {
         "model": model,
         "messages": build_messages(user_message, history),
         "tools": get_tools(),
-    }
-    """
-
-    payload = {
-        "model": model,
-        "messages": build_messages(user_message, history),
     }
     payload.update(get_defaults())
     return payload

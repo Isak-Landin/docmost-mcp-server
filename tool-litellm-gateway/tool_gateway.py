@@ -2,14 +2,14 @@ import json
 import os
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import requests
 
 from archon.archon import archon_search, archon_rag_query
 from web_search.web_search import web_search
 from ollama.ollama_client import call_ollama, parse_model_output
-
-from fastapi.middleware.cors import CORSMiddleware
 
 
 MAX_TOOL_LOOPS = int(os.getenv("MAX_TOOL_LOOPS", "5"))
@@ -102,50 +102,41 @@ def chat(req: ChatRequest):
             raise HTTPException(status_code=500, detail=f"ollama_request_failed: {str(e)}")
 
         parsed = parse_model_output(ollama_data)
-        action = parsed.get("action")
 
-        if action == "final":
-            print(parsed)
-            print(ollama_data)
-            return {
-                "ok": True,
-                "answer": parsed.get("answer", ""),
-                "messages": history,
-                "ollama_response": ollama_data,
-            }
+        if parsed.get("action") == "tool":
+            tool_name = parsed.get("tool_name", "")
+            arguments = parsed.get("arguments", {})
 
-        if action != "tool":
-            return {
-                "ok": False,
-                "error": "invalid_model_action",
-                "raw_output": ollama_data,
-            }
+            try:
+                tool_result = run_tool(tool_name, arguments)
+            except requests.RequestException as e:
+                print(f"REQUEST FAILED: {e}", flush=True)
+                raise HTTPException(status_code=500, detail=f"tool_request_failed: {str(e)}")
+            except Exception as e:
+                tool_result = {
+                    "error": "tool_runtime_failed",
+                    "tool_name": tool_name,
+                    "message": str(e),
+                }
 
-        tool_name = parsed.get("tool_name", "")
-        arguments = parsed.get("arguments", {})
+            assistant_message = ollama_data.get("message", {}) or {}
+            history.append(assistant_message)
+            history.append(
+                {
+                    "role": "tool",
+                    "tool_name": tool_name,
+                    "content": json.dumps(tool_result, ensure_ascii=False),
+                }
+            )
+            continue
 
-        try:
-            tool_result = run_tool(tool_name, arguments)
-        except requests.RequestException as e:
-            print(f"REQUEST FAILED: {e}", flush=True)
-            raise HTTPException(status_code=500, detail=f"tool_request_failed: {str(e)}")
-        except Exception as e:
-            tool_result = {
-                "error": "tool_runtime_failed",
-                "tool_name": tool_name,
-                "message": str(e),
-            }
-
-        assistant_message = ollama_data.get("message", {})
-
-        history.append(assistant_message)
-        history.append(
-            {
-                "role": "tool",
-                "name": tool_name,
-                "content": json.dumps(tool_result, ensure_ascii=False),
-            }
-        )
+        return {
+            "ok": True,
+            "answer": parsed.get("answer", ""),
+            "thinking": parsed.get("thinking", ""),
+            "messages": history,
+            "ollama_response": ollama_data,
+        }
 
     return {
         "ok": False,
@@ -154,11 +145,6 @@ def chat(req: ChatRequest):
     }
 
 
-"""
-DEBUGGING INTERFACE
-"""
-from fastapi.responses import FileResponse
 @app.get("/debug")
 def debug():
     return FileResponse("index.html")
-

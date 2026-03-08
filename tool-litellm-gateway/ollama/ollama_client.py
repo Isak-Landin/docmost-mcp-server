@@ -1,4 +1,3 @@
-import json
 import os
 
 import requests
@@ -16,15 +15,12 @@ def call_ollama(user_message: str, history: list[dict] | None = None) -> dict:
         user_message=user_message,
         history=history,
     )
-    print("OLLAMA PAYLOAD:", json.dumps(payload, indent=2), flush=True)
 
     r = requests.post(
         f"{OLLAMA_BASE_URL}/api/chat",
         json=payload,
         timeout=300,
     )
-
-    print(r.json())
 
     if not r.ok:
         print("OLLAMA STATUS:", r.status_code, flush=True)
@@ -35,30 +31,24 @@ def call_ollama(user_message: str, history: list[dict] | None = None) -> dict:
 
 
 def parse_model_output(data: dict) -> dict:
-    message = data.get("message", {})
+    message = data.get("message", {}) or {}
 
-    if "tool_calls" in message and message["tool_calls"]:
-        tool_call = message["tool_calls"][0]
-        function_data = tool_call.get("function", {})
+    tool_calls = message.get("tool_calls") or []
+    if tool_calls:
+        tool_call = tool_calls[0] or {}
+        function_data = tool_call.get("function", {}) or {}
 
         return {
             "action": "tool",
             "tool_name": function_data.get("name", ""),
             "arguments": function_data.get("arguments", {}) or {},
             "raw_message": message,
+            "thinking": message.get("thinking", ""),
         }
-
-    content = message.get("content", "")
-
-    try:
-        parsed = json.loads(content)
-        if isinstance(parsed, dict):
-            return parsed
-    except json.JSONDecodeError:
-        pass
 
     return {
         "action": "final",
-        "answer": content,
+        "answer": message.get("content", "") or "",
         "raw_message": message,
+        "thinking": message.get("thinking", ""),
     }
