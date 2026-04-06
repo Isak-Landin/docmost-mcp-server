@@ -1,9 +1,9 @@
 # Docmost MCP
 
-Docmost MCP is a read-only service that connects directly to a live Docmost PostgreSQL
+Docmost MCP is a service that connects directly to a live Docmost PostgreSQL
 database and exposes that content through:
 
-- a REST API for conventional HTTP access
+- a REST API for conventional HTTP read and write access
 - a remote MCP endpoint for GitHub Copilot CLI and other MCP clients
 
 It is designed to run as a container on the same server and Docker network as the
@@ -15,18 +15,9 @@ This service exposes:
 
 | Surface | Path | Purpose |
 |---|---|---|
-| REST API | `/health`, `/spaces`, `/spaces/{space_id}`, `/spaces/{space_id}/tree`, `/spaces/{space_id}/replica-structure`, `/spaces/{space_id}/pages`, `/spaces/{space_id}/pages/{page_id}`, `/replica/standards`, `/replica/resolve-directory-name` | Read-only HTTP access to spaces, trees, replica structure, replica standards, and pages |
+| REST API (read) | `/health`, `/spaces`, `/spaces/{space_id}`, `/spaces/{space_id}/tree`, `/spaces/{space_id}/replica-structure`, `/spaces/{space_id}/pages`, `/spaces/{space_id}/pages/{page_id}`, `/replica/standards`, `/replica/resolve-directory-name` | HTTP access to spaces, trees, replica structure, replica standards, and pages |
+| REST API (write) | `POST /spaces`, `DELETE /spaces/{space_id}`, `POST /spaces/{space_id}/pages`, `PUT /spaces/{space_id}/pages/{page_id}`, `DELETE /spaces/{space_id}/pages/{page_id}` | Create, update, and delete spaces and pages via Docmost REST API |
 | MCP | `/mcp` | Remote streamable HTTP MCP endpoint |
-
-This service does **not** expose write operations.
-
-## Read-only contract
-
-- no create, update, move, or delete operations
-- pages are always scoped to a space
-- page text is returned as normalized plain text
-- repeated newline runs and repeated `+` storage noise are collapsed
-- if data does not exist, the service returns explicit not found errors instead of inventing structure
 
 ## Exposed REST routes
 
@@ -37,46 +28,67 @@ This service does **not** expose write operations.
 | `GET` | `/spaces/{space_id}` | get one non-deleted space |
 | `GET` | `/spaces/{space_id}/tree` | get the nested page tree for one space |
 | `GET` | `/spaces/{space_id}/replica-structure` | get the deterministic local replica layout for one space |
-| `GET` | `/spaces/{space_id}/pages` | list all non-deleted pages in a space |
-| `GET` | `/spaces/{space_id}/pages/{page_id}` | get one non-deleted page in its space |
+| `GET` | `/spaces/{space_id}/pages` | list all non-deleted pages in a space (no content) |
+| `GET` | `/spaces/{space_id}/pages/{page_id}` | get one page with full markdown content |
 | `GET` | `/replica/standards` | get local replica naming, structure, and sync rules |
-| `GET` | `/replica/resolve-directory-name` | resolve the correct local directory name for a page title under the shared standard |
+| `GET` | `/replica/resolve-directory-name` | resolve the correct local directory name for a page title |
+| `POST` | `/spaces` | create a new space |
+| `DELETE` | `/spaces/{space_id}` | permanently delete a space and all its pages |
+| `POST` | `/spaces/{space_id}/pages` | create a page (add `parent_page_id` for a child page) |
+| `PUT` | `/spaces/{space_id}/pages/{page_id}` | update a page title and/or content (markdown) |
+| `DELETE` | `/spaces/{space_id}/pages/{page_id}` | soft-delete a page |
+
+Write routes authenticate against Docmost automatically using `DOCMOST_APP_URL`, `DOCMOST_USER_EMAIL`, and `DOCMOST_USER_PASSWORD` from `.env`. No auth call is needed before any write request.
+
+All content accepted and returned by write routes is **markdown**.
+
+Use `operation: replace | append | prepend` on the update endpoint to control how content is applied. Default is `replace`.
 
 ## Exposed MCP tools
-
-The MCP endpoint exposes these read-only tools:
 
 | Tool | Description |
 |---|---|
 | `list_spaces` | list all non-deleted spaces |
 | `get_space` | get one space by UUID |
 | `get_space_tree` | get the nested page tree for one space |
+| `list_pages` | list all pages in a space (no content) |
+| `get_page` | get one page by UUID inside a space, with full markdown content |
 | `get_replica_standards` | get local replica naming, structure, and sync rules |
-| `resolve_replica_directory_name` | resolve the correct local directory name for a page title under the shared standard |
+| `resolve_replica_directory_name` | resolve the correct local directory name for a page title |
 | `get_replica_structure` | get the deterministic local replica layout for one space |
-| `list_pages` | list all pages in a space |
-| `get_page` | get one page by UUID inside a space |
+| `create_space` | create a new space (slug must be alphanumeric, no dashes) |
+| `delete_space` | permanently delete a space — explicit user instruction required |
+| `create_page` | create a page; pass `parent_page_id` for arbitrarily deep nesting |
+| `update_page` | update a page title and/or content; supports replace/append/prepend |
+| `delete_page` | soft-delete a page — only when user has confirmed removal |
 
-## Intended lookup flow
+## Intended lookup and write flow
 
-This service is intentionally **space-first**.
+This service is **space-first**.
 
 1. use `list_spaces` or `GET /spaces` to identify the correct Docmost space
 2. select the matching space by name, then use its `id` as `space_id`
-3. use `get_space_tree(space_id)` or `GET /spaces/{space_id}/tree` when you need the full nested structure quickly
-4. use `list_pages(space_id)` or `GET /spaces/{space_id}/pages` when you need the flat list for inspection or follow-up lookups
-5. use `get_page(space_id, page_id)` or `GET /spaces/{space_id}/pages/{page_id}` only after you know the correct IDs
+3. use `get_space_tree(space_id)` or `GET /spaces/{space_id}/tree` for the full nested structure
+4. use `list_pages(space_id)` or `GET /spaces/{space_id}/pages` for a flat list
+5. use `get_page(space_id, page_id)` or `GET /spaces/{space_id}/pages/{page_id}` for a single page with markdown content
+
+Before creating a page:
+- check whether the page already exists via `get_space_tree` or `list_pages`
+- derive the correct name with `get_replica_standards` and `resolve_replica_directory_name`
+- use `create_page` with `parent_page_id` to create nested child pages at any depth
+
+When updating existing pages:
+- prefer `update_page` over delete+create — Docmost preserves full page history on update
+- use `operation=replace` (default) to overwrite, `append` to add after, `prepend` to add before
 
 Important clarifications:
 
 - page lookup is not global; pages are always scoped to a space
 - the tools and routes accept `space_id`, not a space name string
 - if you only know a space name, resolve it through `list_spaces` first
-- if content looks stale or deprecated, treat that as an explicit finding instead of silently assuming it is current
 - the tree is built dynamically from `pages.parent_page_id`
 - `parent_page_id = null` means the page is a top-level page in the space
-- each tree node can contain arbitrarily deep nested `children`
-- `orphan_pages` contains pages that could not be attached to a normal root because their parent is missing or otherwise unreachable
+- `orphan_pages` contains pages whose parent is missing or unreachable
 
 ## Recommended documentation-source workflow
 
@@ -84,25 +96,22 @@ The intended usage is **not** merely "Docmost-related tasks."
 
 The intended usage is:
 
-- Docmost MCP is the main documentation source for the active project
-- established project direction, user decisions, and documented behavior should be read from Docmost when they are not fully present in the prompt
+- Docmost MCP is the primary **long-term** documentation source for the active project — remote pages are not presumed stale or deprecated
+- established project direction, user decisions, and documented behavior should be read from Docmost when not fully present in the prompt
+- internal session documentation and Docmost documentation are complementary — use both
 - if the user refers to docs, documentation, a documented page, or a file/path that may be documented externally, check Docmost before guessing
-- because the remote Docmost surface is currently read-only, Copilot should maintain a **local replica** of the retrieved documentation for copy-pasteable project truth and manual later sync
+- maintain a **local replica** of documentation at `./{space_name}-replica/` for local editing
 
 Recommended local-replica behavior:
 
-1. create a local replica location if it does not already exist, at `./{space_name}-replica/`
-2. use `get_replica_structure(space_id)` as the source for the initial replica layout of existing remote content
-3. use `get_replica_standards()` and `resolve_replica_directory_name(...)` for new local-only documentation that does not yet exist on remote
-4. update the local replica whenever newer remote Docmost content is established
-5. apply requested documentation edits to the local replica, not to remote Docmost, while this service remains read-only
-6. if local replica files have been edited, identify which local files changed, map them back to remote pages when possible, and tell the user those changes still need manual remote sync
-7. treat the local replica as the working copy-pasteable documentation source until remote write support exists
-
-Current limitation:
-
-- the server is read-only, so this workflow depends on local-file maintenance by the client
-- remote Docmost remains the source to read from, but the local replica is the place to keep immediately usable synced documentation text
+1. create a local replica location if it does not exist, at `./{space_name}-replica/`
+2. use `get_replica_structure(space_id)` as the source for the initial replica layout
+3. use `get_replica_standards()` and `resolve_replica_directory_name(...)` for new local-only pages not yet on remote
+4. when local replica files are edited, track which files changed and which remote pages they correspond to
+5. do **not** automatically sync local changes to remote — only sync after the user accepts the change (explicitly or implicitly)
+6. to sync: use `update_page` for edited files, `create_page` for new local-only files, `delete_page` only when the user has confirmed a page should be removed
+7. never delete remote pages based solely on a missing local file without user confirmation
+8. treat remote Docmost as potentially behind local-only edits until sync occurs, but do **not** treat it as deprecated
 
 ## Replica structure and naming standard
 
@@ -145,41 +154,45 @@ Directory naming rule:
 
 Sync and truth rule:
 
-- remote Docmost is the published read source
+- remote Docmost is the long-term authoritative documentation source — not assumed stale
 - the local replica is the editable working copy
-- if newer local replica changes exist, the local replica becomes the working source of truth until a human syncs those changes back to remote
-- after local-only edits, remote Docmost may be stale or effectively deprecated until that manual sync occurs
 - when local replica files are edited, call out the changed local file paths explicitly
-- when those edited files correspond to remote pages, identify the remote page title and page id explicitly
-- prompt the user to copy those specific local changes back to remote Docmost
+- when those edited files correspond to remote pages, identify the remote page title and page id
+- do not automatically sync local changes back to remote — only after user accepts the change
+- to sync: use `update_page` for edits, `create_page` for new local-only pages, `delete_page` only when user confirms
 
-The MCP server also publishes built-in instructions:
+The MCP server also publishes built-in instructions (from `app/mcp_server.py` `SERVER_INSTRUCTIONS`):
 
 ```text
-This server is strictly read-only.
-Never create, update, move, or delete spaces or pages.
-Use this server as the main documentation source for the active project when documentation is relevant.
-Only use the provided Docmost tools to inspect spaces and pages.
-Start with list_spaces when you need to identify the correct space.
-If the user gives a space name rather than a UUID, find the matching space via list_spaces first.
-When you need the page hierarchy of a space, use get_space_tree instead of reconstructing it manually.
-When you need the deterministic local replica layout for a space, use get_replica_structure.
-When you need naming or sync rules for local replica work, use get_replica_standards.
-When you need the correct local directory name for a planned page, use resolve_replica_directory_name.
-Maintain or create a local replica at `./{space_name}-replica/` when the client workflow allows it, because the remote surface is read-only.
-All local replica directory and file names must not contain spaces. Spaces in page titles or space names are replaced with hyphens when building local paths.
-Use get_replica_structure as the source for the initial local replica layout and for refreshing existing remote-backed replica content.
-Use get_replica_standards together with resolve_replica_directory_name for local-only documentation additions that do not yet exist on remote.
-Use the returned space_id for list_pages and get_page.
-Pages are always space-scoped: use space_id together with page_id, and use space_id for page listing.
-Treat text_content as normalized plain text, not authoritative rich formatting.
-If the user refers to docs, documented behavior, page names, or project guidance not fully present in the prompt, consult this server before guessing.
-If newer local replica changes exist, treat the local replica as the working source of truth until a human syncs those changes back to remote Docmost.
-When local replica files are edited, identify which local replica files changed, identify which remote page each file corresponds to when available, and tell the user to sync those local changes back to remote Docmost manually.
-Use the replica tree mapping and page metadata to relate local files back to remote pages instead of guessing.
-After local-only documentation edits, remote Docmost may be stale or effectively deprecated until manual sync occurs.
-If content looks stale, deprecated, or inconsistent with newer verified behavior, say so explicitly.
-If requested data is missing, report that explicitly instead of inferring it.
+This server exposes Docmost spaces and pages for both reading and writing.
+
+## Reading
+Use list_spaces to find the correct space. Use get_space_tree for page hierarchy.
+Use list_pages for a flat page list. Use get_page for a single page with markdown content.
+If the user gives a space name rather than a UUID, resolve it with list_spaces first.
+Pages are always space-scoped — always pass space_id together with page_id.
+
+## Writing
+All write tools authenticate automatically — never call an auth tool first.
+Use create_space to create a new space (slug must be alphanumeric, no dashes).
+Use create_page to create a page. Pass parent_page_id to create nested child pages.
+Use update_page to update an existing page's title and/or content.
+  Prefer update_page over delete+create — Docmost preserves page history on update.
+  Use operation='replace' (default) to overwrite, 'append' or 'prepend' to add content.
+Use delete_page to soft-delete a page (it moves to Docmost trash).
+Use delete_space to permanently delete a space and all its contents.
+All content is markdown in and out. Never pass ProseMirror JSON to write tools.
+
+## Replica management
+Maintain or create a local replica at `./{space_name}-replica/` when the client workflow allows it.
+All local replica directory and file names must not contain spaces — replace with hyphens.
+Use get_replica_structure for the initial local replica layout.
+Use get_replica_standards and resolve_replica_directory_name for local-only additions.
+When local replica files are edited, identify changed files, map them to remote pages,
+and tell the user those changes still need manual sync back to remote Docmost.
+Treat remote Docmost as potentially stale after local-only edits until manual sync.
+If content looks stale, deprecated, or inconsistent with verified behavior, say so explicitly.
+If requested data is missing, report that explicitly instead of guessing.
 ```
 
 ## Architecture
@@ -212,9 +225,15 @@ Important files:
 | `env.example` | example runtime configuration |
 | `requirements.txt` | Python dependencies |
 | `app/main.py` | FastAPI application entrypoint |
-| `app/mcp_server.py` | MCP server definition |
-| `app/replica.py` | replica naming, layout, and sync-rule logic |
-| `app/routers/replica.py` | REST routes for replica standards, naming resolution, and replica structure |
+| `app/mcp_server.py` | MCP server and all MCP tool definitions |
+| `app/models.py` | shared Pydantic models for request/response |
+| `app/docmost_auth/auth.py` | Docmost login; stores JWT in memory; never persisted |
+| `app/query/docmost.py` | DB + REST read operations (spaces, pages, tree, replica) |
+| `app/query/routers/` | REST GET routes for read operations |
+| `app/write/docmost.py` | httpx REST client for all write operations |
+| `app/write/routers/spaces.py` | POST/DELETE `/spaces` REST routes |
+| `app/write/routers/pages.py` | POST/PUT/DELETE `/spaces/{id}/pages` REST routes |
+| `docs/docmost-write-api.md` | Docmost write API notes (auth, POST-only, response wrapper) |
 
 ## Full setup from start to finish
 
@@ -316,6 +335,10 @@ EXTERNAL_PORT=8099
 
 MODE=prod
 LOG_LEVEL=INFO
+
+DOCMOST_APP_URL=http://<DOCMOST_CONTAINER_HOSTNAME>:3000
+DOCMOST_USER_EMAIL=<YOUR_DOCMOST_USER_EMAIL>
+DOCMOST_USER_PASSWORD=<YOUR_DOCMOST_USER_PASSWORD>
 ```
 
 ### 5. Build and start the container
@@ -563,6 +586,25 @@ $COPILOT_HOME/copilot-instructions.md
 ```
 
 ```md
+# Instructions
+We are working with extremely complex and sensitive structures.
+Therefor we can't afford your common assumptions and usual approach to be implemented.
+It is essential that all following rules are followed.
+
+Clarification. Internal documentation is not docs that exist in the repository you have access to. It is the copilot internal documentation for a session.
+
+- Always read internal documentation before attempting to answer or take action.
+- Always update internal documentation when new insight is established which does not match the current internal documentation.
+- Always update internal documentation determined that previously mentioned additions, edits and deletes were accepted and not reflected in internal documentation.
+- Don't Update documentation, project or internal, until change is implemented.
+- Don't update project documentation unless asked for.
+- Mention deprecated project documentation when noticed to be deprecated.
+- Keep ownership boundaries strict.
+- Do not push persistence into bootstrap.
+- Prefer simple return contracts.
+- Don't expect existence of code representation unless explicitly existing is mentioned or can be assumed.
+- Don't guess or invent new rules or module ownerships.
+
 ## Docmost MCP — reading
 
 Use the docmost-mcp MCP server as the primary long-term documentation source for the active project.
@@ -608,7 +650,7 @@ When syncing local → remote:
 4. For files removed locally AND confirmed removed by the user: call delete_page.
 5. Never delete remote pages based solely on a missing local file without user confirmation.
 
-## Naming rules
+## Naming rules (spaces)
 
 Space slugs must be alphanumeric with no spaces or dashes (e.g. "mydocs", not "my-docs").
 Use get_replica_standards to verify naming conventions before creating spaces or pages.
@@ -672,7 +714,7 @@ Check:
 1. the configured MCP URL ends with `/mcp`
 2. the Copilot CLI machine can reach the host and port
 3. HTTPS or proxy settings are correct if the endpoint is remote
-4. the MCP config only includes the intended read-only tools
+4. the MCP config includes all intended tools (read + write)
 
 ### Page lookup is confusing or keeps failing
 
