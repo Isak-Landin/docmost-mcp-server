@@ -428,63 +428,42 @@ Copilot CLI only needs a configured MCP server pointing at the remote URL.
 Copilot CLI already includes the GitHub MCP server by default. Docmost MCP is an
 additional remote MCP server you add to extend Copilot CLI with Docmost read access.
 
-## Important MCP scope behavior in Copilot CLI
-
-GitHub's Copilot CLI documentation states that configured MCP server details are
-stored by default in:
+Configured MCP server details are saved per Copilot config home. The clean
+Docmost-only setup is therefore to use a dedicated:
 
 ```text
-~/.copilot/mcp-config.json
+COPILOT_HOME=~/.copilot-docmost
 ```
 
-That default location can be changed with:
+That keeps Docmost MCP configuration and Docmost-specific instructions out of your
+normal default Copilot home.
+
+### Recommended layout
+
+Use these two files inside the dedicated Docmost home:
 
 ```text
-COPILOT_HOME
+~/.copilot-docmost/mcp-config.json
+~/.copilot-docmost/copilot-instructions.md
 ```
 
-That means:
+Keep your normal:
 
-- adding an MCP server is not a one-time per-session action
-- MCP server configuration persists across sessions for that Copilot config home
-- if you use your normal default Copilot config, the MCP server may be available in unrelated projects too
+```text
+~/.copilot/copilot-instructions.md
+```
 
-Copilot CLI also ships with the GitHub MCP server by default. The isolated
-`COPILOT_HOME` approach is mainly about separating your **saved custom MCP config**
-from your usual config home. It does not mean "remove all built-in Copilot
-capabilities."
+generic. Do **not** keep Docmost-specific behavior in the default global
+instructions file, or it will clash with unrelated work.
 
-## Recommended safe setup for Docmost-only use
-
-Use a separate Copilot config home for Docmost work.
-
-### 1. Create a dedicated Copilot home
-
-Example:
+### Recommended start command
 
 ```bash
 export COPILOT_HOME="$HOME/.copilot-docmost"
 copilot
 ```
 
-That creates an isolated Copilot configuration set for Docmost work.
-
-If you already have other custom MCP servers configured in your normal Copilot setup
-and you want to keep using them in this isolated Docmost-focused setup, copy your
-existing MCP config into the new config home before adding Docmost MCP:
-
-```bash
-mkdir -p "$COPILOT_HOME"
-cp "$HOME/.copilot/mcp-config.json" "$COPILOT_HOME/mcp-config.json"
-```
-
-Then add or merge the `docmost-mcp` entry into that copied file.
-
-If you do **not** want any of your existing custom MCP servers in the isolated
-Docmost-focused setup, do not copy that file. In that case, start with the isolated
-config home and add only the Docmost MCP server you want.
-
-### 2. Add the remote MCP server inside that Docmost-only Copilot environment
+### Add the MCP server
 
 Inside Copilot CLI:
 
@@ -492,13 +471,7 @@ Inside Copilot CLI:
 /mcp add
 ```
 
-Then:
-
-1. enter the remote MCP server details
-2. use <kbd>Tab</kbd> to move between fields
-3. press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save
-
-Use a remote HTTP MCP server with a placeholder URL like:
+Then enter the remote HTTP MCP URL:
 
 ```text
 https://<YOUR_DOCMOST_MCP_HOST>/mcp
@@ -517,53 +490,20 @@ list_pages
 get_page
 ```
 
-Recommended meaning of those tools in Copilot CLI:
+After saving with `/mcp add`, verify that:
 
-- `list_spaces`: first discovery step when you only know a human-readable space name
-- `get_space`: inspect one specific space once you already have its UUID
-- `get_space_tree`: preferred structure-discovery step for nested page relationships in a space
-- `get_replica_standards`: policy source for local replica naming, files, and sync behavior
-- `resolve_replica_directory_name`: naming helper for local-only planned pages
-- `get_replica_structure`: preferred local-layout projection for initial replica creation and refresh of existing remote-backed content
-- `list_pages`: flat page listing for follow-up inspection or lookup
-- `get_page`: final page fetch once both `space_id` and `page_id` are known
+- the saved URL ends with `/mcp`
+- there is no stray whitespace in the URL
+- the allowlist includes the tree and replica tools, not just page lookup tools
 
-### 3. Use that isolated Copilot environment only for Docmost-related sessions
+### Recommended `mcp-config.json`
 
-When you want Docmost MCP available:
-
-```bash
-export COPILOT_HOME="$HOME/.copilot-docmost"
-copilot
-```
-
-When you do **not** want Docmost MCP available:
-
-```bash
-unset COPILOT_HOME
-copilot
-```
-
-or set `COPILOT_HOME` to some other non-Docmost config directory.
-
-This is the cleanest way to avoid exposing Docmost MCP in unrelated projects.
-
-## Manual Copilot CLI MCP configuration
-
-If you prefer to edit the config manually, create or update:
-
-```text
-~/.copilot/mcp-config.json
-```
-
-If you are using a dedicated Docmost config home, the equivalent path is:
+Store this in:
 
 ```text
 $COPILOT_HOME/mcp-config.json
 ```
 
-Minimal file structure:
-
 ```json
 {
   "mcpServers": {
@@ -576,118 +516,16 @@ Minimal file structure:
 }
 ```
 
-Example merged file when you want to keep other custom MCP servers too:
+### Recommended `copilot-instructions.md`
 
-```json
-{
-  "mcpServers": {
-    "my-other-mcp": {
-      "type": "http",
-      "url": "https://<YOUR_OTHER_MCP_HOST>/mcp",
-      "tools": ["tool_a", "tool_b"]
-    },
-    "docmost-mcp": {
-      "type": "http",
-      "url": "https://<YOUR_DOCMOST_MCP_HOST>/mcp",
-      "tools": ["list_spaces", "get_space", "get_space_tree", "get_replica_standards", "resolve_replica_directory_name", "get_replica_structure", "list_pages", "get_page"]
-    }
-  }
-}
-```
-
-This JSON structure matches the documented `mcpServers` format for Copilot MCP
-configuration: the server name maps to an object with `type`, `url`, and an explicit
-`tools` allowlist.
-
-For this remote Docmost MCP server, the important fields are:
-
-- `mcpServers`: top-level object containing named MCP server entries
-- `docmost-mcp`: the server name shown to Copilot
-- `type: "http"`: required for this remote HTTP MCP endpoint
-- `url`: the full remote MCP URL ending in `/mcp`
-- `tools`: explicit read-only allowlist for this server
-
-## Per-session guidance for Copilot CLI
-
-Even when the MCP server is already configured, it is still useful to guide the model
-inside a given session.
-
-At the beginning of a Docmost-related Copilot session, tell Copilot something like:
+Store this in:
 
 ```text
-Use the docmost-mcp server as the main documentation source for this project in this session.
-Treat it as read-only.
-If docs, documented behavior, page names, or relevant paths are mentioned without full context in the prompt, consult docmost-mcp before guessing.
-Always start by identifying the correct Docmost space before looking up pages.
-Use get_space_tree when you need to understand nested documentation structure quickly.
-Maintain or create a local replica at `./{space_name}-replica/` when needed, because the remote Docmost surface is read-only.
-Use get_replica_structure when you need the exact local replica layout for an existing space or when building the initial replica from remote content.
-Use get_replica_standards when you need the replica naming, file, or sync rules.
-Use resolve_replica_directory_name when creating a new local-only page directory.
-Use the replica tree mapping plus `_meta.json` to relate local replica files back to remote pages.
-If newer local replica changes exist, treat the local replica as the working source of truth until the user syncs it back to remote.
-If local replica files are edited, identify the changed local file paths, identify the corresponding remote pages when available, and tell the user those specific changes still need manual sync back to remote.
-After local-only documentation edits, remote Docmost may be stale or effectively deprecated until manual sync occurs.
-Treat page content as possibly stale and call out deprecated or old material explicitly when you see it.
-Do not use it for unrelated repositories or unrelated tasks.
+$COPILOT_HOME/copilot-instructions.md
 ```
-
-This is not a replacement for isolated config, but it improves behavior within the session.
-
-## Optional Copilot CLI instructions for Docmost repositories
-
-If you work in one or more repositories that are specifically tied to Docmost content,
-you can also add Copilot instructions such as:
 
 ```md
-Use the docmost-mcp MCP server as the main documentation source for this repository and project direction.
-Treat the server as read-only.
-If documentation, documented behavior, page names, or relevant file/path references are mentioned without full context in the prompt, consult docmost-mcp before guessing.
-Resolve the correct space first, then inspect pages within that space.
-Use get_space_tree for nested documentation structure before falling back to manual page-by-page reconstruction.
-Maintain or create a local replica at `./{space_name}-replica/` when needed, since the remote Docmost surface is read-only.
-Use get_replica_structure for the exact local replica layout of an existing space and for initial replica creation from remote content.
-Use get_replica_standards and resolve_replica_directory_name for local-only documentation additions that do not yet exist on remote.
-Use the replica tree mapping plus `_meta.json` to relate local replica files back to remote pages.
-If newer local replica changes exist, treat the local replica as the working source of truth until the user syncs it back to remote.
-If local replica files are edited, identify the changed local file paths, identify the corresponding remote pages when available, and tell the user those changes still need manual sync back to remote.
-Treat remote Docmost as potentially stale after local-only edits until manual sync occurs.
-If a page appears deprecated or stale relative to verified current behavior, say that explicitly.
-Do not use the Docmost MCP server in unrelated repositories.
-```
-
-For GitHub Copilot CLI, repository-wide instructions can live in:
-
-```text
-.github/copilot-instructions.md
-```
-
-Copilot CLI also supports path-specific instruction files in:
-
-```text
-.github/instructions/**/*.instructions.md
-```
-
-and user-level instructions in:
-
-```text
-$HOME/.copilot/copilot-instructions.md
-```
-
-These instruction files are separate from `mcp-config.json`.
-
-- `mcp-config.json` tells Copilot **which MCP servers exist**
-- instruction files tell Copilot **how it should use them**
-
-That distinction matters here:
-
-- the Docmost MCP server already publishes server-side read-only instructions
-- but local Copilot instructions are still useful so Copilot understands the intended
-  usage pattern before it decides how to work in your session
-
-Recommended local instruction content:
-
-```md
+# Instructions
 Use the docmost-mcp MCP server as the main documentation source for the active project.
 Treat it as read-only.
 If documentation, documented behavior, page names, or relevant file/path references are mentioned without full context in the prompt, consult docmost-mcp before guessing.
@@ -704,6 +542,25 @@ Treat remote Docmost as potentially stale after local-only edits until manual sy
 If a page appears stale, deprecated, or older than verified current behavior, say that explicitly.
 Prefer newer verified repo/runtime behavior over stale Docmost content when they conflict.
 ```
+
+This is the one recommended Docmost-specific instruction file. Do not split the
+same Docmost behavior across multiple competing instruction files unless you
+deliberately want to manage instruction precedence yourself.
+
+### Resulting behavior
+
+With the dedicated Docmost home configured this way:
+
+- Docmost MCP is available only when you start Copilot with `COPILOT_HOME="$HOME/.copilot-docmost"`
+- the Docmost-specific instructions live alongside the Docmost MCP config
+- your default global Copilot instructions stay free of Docmost-specific assumptions
+- the consumer is explicitly told to:
+  - use Docmost as the main documentation source
+  - create and maintain `./{space_name}-replica/`
+  - use `get_replica_structure` for initial replica creation and refresh
+  - use `get_replica_standards` and `resolve_replica_directory_name` for local-only additions
+  - map edited local replica files back to remote pages
+  - prompt for manual remote sync when local replica content is newer than remote
 
 ## Updating the running service
 
