@@ -1,3 +1,5 @@
+venv/
+
 # Project specific ignores
 test_file.py
 test_query.py
