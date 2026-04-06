@@ -53,7 +53,16 @@ def _format_page(row: dict) -> dict:
     return row
 
 
-@router.get("", response_model=List[PageOut])
+@router.get(
+    "",
+    response_model=List[PageOut],
+    summary="List pages in a space",
+    description=(
+        "Returns all non-deleted pages belonging to the given space, ordered by creation date. "
+        "`text_content` is returned normalized: repeated newline runs and repeated `+` storage "
+        "noise are collapsed."
+    ),
+)
 def list_pages(space_id: UUID):
     sql = """
         SELECT id, slug_id, title, icon, position, parent_page_id, creator_id,
@@ -71,7 +80,17 @@ def list_pages(space_id: UUID):
     return [_format_page(r) for r in rows]
 
 
-@router.post("", response_model=PageOut, status_code=201)
+@router.post(
+    "",
+    response_model=PageOut,
+    status_code=201,
+    summary="Create a page",
+    description=(
+        "Creates a new page inside the given space. "
+        "`title` is required. `parent_page_id` must belong to the same space if provided. "
+        "`text_content` is stored as plain text."
+    ),
+)
 def create_page(space_id: UUID, body: PageCreate):
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -107,7 +126,15 @@ def create_page(space_id: UUID, body: PageCreate):
     return _format_page(row)
 
 
-@router.get("/{page_id}", response_model=PageOut)
+@router.get(
+    "/{page_id}",
+    response_model=PageOut,
+    summary="Get a page",
+    description=(
+        "Returns a single page by its UUID, scoped to the given space. "
+        "Returns 404 if the page does not exist, is deleted, or belongs to a different space."
+    ),
+)
 def get_page(space_id: UUID, page_id: UUID):
     with get_conn() as conn:
         with conn.cursor() as cur:
@@ -116,7 +143,15 @@ def get_page(space_id: UUID, page_id: UUID):
     return _format_page(row)
 
 
-@router.patch("/{page_id}", response_model=PageOut)
+@router.patch(
+    "/{page_id}",
+    response_model=PageOut,
+    summary="Update a page",
+    description=(
+        "Partially updates a page. Accepted fields: `title`, `parent_page_id`, `text_content`. "
+        "At least one field must be provided. `parent_page_id` must belong to the same space if provided."
+    ),
+)
 def update_page(space_id: UUID, page_id: UUID, body: PageUpdate):
     if not any([body.title is not None, body.parent_page_id is not None, body.text_content is not None]):
         raise HTTPException(status_code=400, detail="No fields provided for update")
@@ -156,7 +191,15 @@ def update_page(space_id: UUID, page_id: UUID, body: PageUpdate):
     return _format_page(row)
 
 
-@router.delete("/{page_id}", status_code=204)
+@router.delete(
+    "/{page_id}",
+    status_code=204,
+    summary="Delete a page",
+    description=(
+        "Soft-deletes a page by setting `deleted_at`. The row is not removed from the database. "
+        "Returns 404 if the page does not exist or belongs to a different space."
+    ),
+)
 def delete_page(space_id: UUID, page_id: UUID):
     with get_conn() as conn:
         with conn.cursor() as cur:
