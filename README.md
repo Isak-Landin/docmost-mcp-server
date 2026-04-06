@@ -32,7 +32,7 @@ This service does **not** expose write operations.
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/health` | health check |
+| `GET` | `/health` | process health check only; does not verify database connectivity |
 | `GET` | `/spaces` | list all non-deleted spaces |
 | `GET` | `/spaces/{space_id}` | get one non-deleted space |
 | `GET` | `/spaces/{space_id}/pages` | list all non-deleted pages in a space |
@@ -49,14 +49,34 @@ The MCP endpoint exposes these read-only tools:
 | `list_pages` | list all pages in a space |
 | `get_page` | get one page by UUID inside a space |
 
+## Intended lookup flow
+
+This service is intentionally **space-first**.
+
+1. use `list_spaces` or `GET /spaces` to identify the correct Docmost space
+2. select the matching space by name, then use its `id` as `space_id`
+3. use `list_pages(space_id)` or `GET /spaces/{space_id}/pages` to inspect pages in that space
+4. use `get_page(space_id, page_id)` or `GET /spaces/{space_id}/pages/{page_id}` only after you know the correct IDs
+
+Important clarifications:
+
+- page lookup is not global; pages are always scoped to a space
+- the tools and routes accept `space_id`, not a space name string
+- if you only know a space name, resolve it through `list_spaces` first
+- if content looks stale or deprecated, treat that as an explicit finding instead of silently assuming it is current
+
 The MCP server also publishes built-in instructions:
 
 ```text
 This server is strictly read-only.
 Never create, update, move, or delete spaces or pages.
 Only use the provided Docmost tools to inspect spaces and pages.
-Pages are always space-scoped: use space_id together with page_id.
+Start with list_spaces when you need to identify the correct space.
+If the user gives a space name rather than a UUID, find the matching space via list_spaces first.
+Use the returned space_id for list_pages and get_page.
+Pages are always space-scoped: use space_id together with page_id, and use space_id for page listing.
 Treat text_content as normalized plain text, not authoritative rich formatting.
+If content looks stale, deprecated, or inconsistent with newer verified behavior, say so explicitly.
 If requested data is missing, report that explicitly instead of inferring it.
 ```
 
@@ -237,6 +257,9 @@ Expected response:
 {"ok":true}
 ```
 
+This only confirms that the service process is reachable. It does **not** confirm that
+the Docmost database is reachable.
+
 Open the REST docs:
 
 ```text
@@ -254,6 +277,17 @@ If you are putting this behind a reverse proxy, the MCP URL may instead be:
 ```text
 https://<YOUR_DOCMOST_MCP_HOST>/mcp
 ```
+
+To verify a database-backed route as part of manual testing, also try:
+
+```bash
+curl http://<YOUR_DOCMOST_MCP_HOST>:8099/spaces
+```
+
+If the database is unreachable, the read routes return:
+
+- REST: `503` with `{"detail":"Docmost database connection failed"}`
+- MCP: tool error with `Docmost database connection failed`
 
 ### 8. Optional: place behind HTTPS or a reverse proxy
 
@@ -347,6 +381,13 @@ list_pages
 get_page
 ```
 
+Recommended meaning of those tools in Copilot CLI:
+
+- `list_spaces`: first discovery step when you only know a human-readable space name
+- `get_space`: inspect one specific space once you already have its UUID
+- `list_pages`: second discovery step inside a chosen space
+- `get_page`: final page fetch once both `space_id` and `page_id` are known
+
 ### 3. Use that isolated Copilot environment only for Docmost-related sessions
 
 When you want Docmost MCP available:
@@ -410,6 +451,8 @@ At the beginning of a Docmost-related Copilot session, tell Copilot something li
 ```text
 Use the docmost-mcp server for Docmost content lookup in this session.
 Treat it as read-only.
+Always start by identifying the correct Docmost space before looking up pages.
+Treat page content as possibly stale and call out deprecated or old material explicitly when you see it.
 Do not use it for unrelated repositories or unrelated tasks.
 ```
 
@@ -423,6 +466,8 @@ you can also add Copilot instructions such as:
 ```md
 Use the docmost-mcp MCP server only for Docmost-related tasks in this repository.
 Treat the server as read-only.
+Resolve the correct space first, then inspect pages within that space.
+If a page appears deprecated or stale relative to verified current behavior, say that explicitly.
 Do not use the Docmost MCP server in unrelated repositories.
 ```
 
@@ -483,6 +528,15 @@ Check:
 3. HTTPS or proxy settings are correct if the endpoint is remote
 4. the MCP config only includes the intended read-only tools
 
+### Page lookup is confusing or keeps failing
+
+Check:
+
+1. you identified the correct `space_id` via `/spaces` or `list_spaces` first
+2. you are using that same `space_id` for `/spaces/{space_id}/pages` or `list_pages`
+3. you are not treating page lookup as global across all spaces
+4. the page may genuinely be stale, deleted, or in a different space
+
 ### Database connection fails
 
 Check:
@@ -512,6 +566,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8099
 ```
 
 You still need valid Docmost database connectivity through the configured env vars.
+If your `.env` uses a Docker-only hostname such as `db`, that local run will fail unless
+your machine can resolve that hostname. For non-Docker local runs, set `DOCMOST_DB_HOST`
+or `DOCMOST_DB_URL` to a database address reachable from the host machine.
 
 ## Data model
 

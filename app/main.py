@@ -23,6 +23,7 @@ app = FastAPI(
 app.include_router(health.router)
 app.include_router(spaces.router)
 app.include_router(pages.router)
+# FastMCP already exposes its own /mcp route inside the sub-app.
 app.mount("/", mcp.streamable_http_app())
 
 

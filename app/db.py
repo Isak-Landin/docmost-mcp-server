@@ -5,6 +5,11 @@ from typing import Iterator
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from psycopg2.extensions import connection as PgConnection
+from psycopg2 import OperationalError
+
+
+class DocmostConnectionError(Exception):
+    pass
 
 
 def _get_dsn() -> str:
@@ -26,6 +31,10 @@ def get_conn() -> Iterator[PgConnection]:
         conn = psycopg2.connect(_get_dsn(), cursor_factory=RealDictCursor)
         yield conn
         conn.commit()
+    except OperationalError as exc:
+        if conn is not None:
+            conn.rollback()
+        raise DocmostConnectionError("Docmost database connection failed") from exc
     except Exception:
         if conn is not None:
             conn.rollback()
