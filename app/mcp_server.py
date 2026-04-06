@@ -27,7 +27,6 @@ If requested data is missing, report that explicitly instead of inferring it.
 mcp = FastMCP(
     "Docmost Read-Only MCP",
     instructions=SERVER_INSTRUCTIONS,
-    streamable_http_path="/",
     json_response=True,
 )
 
