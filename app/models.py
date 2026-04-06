@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SpaceOut(BaseModel):
@@ -44,6 +45,13 @@ class PageOut(BaseModel):
     )
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def _coerce_content(cls, v: Any) -> Optional[str]:
+        if isinstance(v, dict):
+            return json.dumps(v)
+        return v
 
     model_config = {"from_attributes": True, "populate_by_name": True}
 
