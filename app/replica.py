@@ -79,10 +79,16 @@ def get_replica_standards() -> ReplicaStandardsOut:
         page_meta_file_name=PAGE_META_FILE_NAME,
         replica_meta_file_name=REPLICA_META_FILE_NAME,
         tree_cache_file_name=TREE_CACHE_FILE_NAME,
+        initial_replica_source_rule="Use `get_replica_structure(space_id)` to build or refresh the initial local replica for an existing remote space.",
+        local_addition_source_rule="Use `get_replica_standards()` plus `resolve_replica_directory_name(...)` when creating a new local-only page directory that does not yet exist on remote.",
+        local_replica_requirement="Maintain a local replica at `./{space_name}-replica/` for normal project-documentation use so local working truth can diverge safely from the read-only remote source.",
         read_source_policy="Read remote Docmost first when there is no newer local replica state.",
         local_edit_policy="Apply requested documentation edits to the local replica, not to remote Docmost, while the service remains read-only.",
         local_truth_policy="If newer local replica changes exist, treat the local replica as the working source of truth until a human syncs those changes back to remote.",
         remote_sync_policy="After local-only edits, remote Docmost may be stale or effectively deprecated until the user manually copies the local replica back to remote.",
+        edited_replica_reporting_rule="When local replica files are edited, report which replica files changed and whether each file corresponds to an existing remote page or a local-only planned page.",
+        remote_page_mapping_rule="Map a local replica file back to its remote page by using the containing page directory's `_meta.json` together with the replica tree entry that exposes the page `id`, `title`, `content_file_path`, and `meta_file_path`.",
+        manual_sync_prompt_rule="If local replica content is newer than remote Docmost, prompt the user to sync the changed local files back to remote and identify the corresponding remote page for each changed file when available.",
     )
 
 

@@ -40,12 +40,16 @@ When you need the page hierarchy of a space, prefer get_space_tree instead of re
 When you need the deterministic local replica layout for a space, use get_replica_structure.
 When you need naming or sync rules for local replica work, use get_replica_standards.
 When you need the correct local directory name for a planned page, use resolve_replica_directory_name.
+Maintain or create a local replica at `./{space_name}-replica/` when the client workflow allows it, because the remote surface is read-only.
+Use get_replica_structure as the source for the initial local replica layout and for refreshing existing remote-backed replica content.
+Use get_replica_standards together with resolve_replica_directory_name for local-only documentation additions that do not yet exist on remote.
 Use the returned space_id for list_pages and get_page.
 Pages are always space-scoped: use space_id together with page_id, and use space_id for page listing.
 Treat text_content as normalized plain text, not authoritative rich formatting.
 If the user refers to docs, documented behavior, page names, or project guidance not fully present in the prompt, consult this server before guessing.
-Maintain or create a local replica of retrieved documentation when the client workflow allows it, because the remote surface is read-only.
 If newer local replica changes exist, treat the local replica as the working source of truth until a human syncs those changes back to remote Docmost.
+When local replica files are edited, identify which local replica files changed, identify which remote page each file corresponds to when available, and tell the user to sync those local changes back to remote Docmost manually.
+Use the replica tree mapping and page metadata to relate local files back to remote pages instead of guessing.
 After local-only documentation edits, remote Docmost may be stale or effectively deprecated until manual sync occurs.
 If content looks stale, deprecated, or inconsistent with newer verified behavior, say so explicitly.
 If requested data is missing, report that explicitly instead of inferring it.

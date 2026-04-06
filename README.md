@@ -91,11 +91,13 @@ The intended usage is:
 
 Recommended local-replica behavior:
 
-1. create a local replica location if it does not already exist
-2. mirror the remote space/page structure there as clearly as possible
-3. prefer the space tree output as the structure source when creating or refreshing that local replica
+1. create a local replica location if it does not already exist, at `./{space_name}-replica/`
+2. use `get_replica_structure(space_id)` as the source for the initial replica layout of existing remote content
+3. use `get_replica_standards()` and `resolve_replica_directory_name(...)` for new local-only documentation that does not yet exist on remote
 4. update the local replica whenever newer remote Docmost content is established
-5. treat the local replica as the working copy-pasteable documentation source until remote write support exists
+5. apply requested documentation edits to the local replica, not to remote Docmost, while this service remains read-only
+6. if local replica files have been edited, identify which local files changed, map them back to remote pages when possible, and tell the user those changes still need manual remote sync
+7. treat the local replica as the working copy-pasteable documentation source until remote write support exists
 
 Current limitation:
 
@@ -120,6 +122,12 @@ Per-page replica mapping:
 - the page's own content lives in `page.md`
 - the page's metadata lives in `_meta.json`
 - child pages become nested subdirectories under the parent page directory
+- the replica tree output already maps each remote page to:
+  - page `id`
+  - page `title`
+  - `content_file_path`
+  - `meta_file_path`
+- use that mapping plus each page directory's `_meta.json` to tell the user which local file corresponds to which remote page
 
 Replica root support files:
 
@@ -138,6 +146,9 @@ Sync and truth rule:
 - the local replica is the editable working copy
 - if newer local replica changes exist, the local replica becomes the working source of truth until a human syncs those changes back to remote
 - after local-only edits, remote Docmost may be stale or effectively deprecated until that manual sync occurs
+- when local replica files are edited, call out the changed local file paths explicitly
+- when those edited files correspond to remote pages, identify the remote page title and page id explicitly
+- prompt the user to copy those specific local changes back to remote Docmost
 
 The MCP server also publishes built-in instructions:
 
@@ -152,12 +163,16 @@ When you need the page hierarchy of a space, use get_space_tree instead of recon
 When you need the deterministic local replica layout for a space, use get_replica_structure.
 When you need naming or sync rules for local replica work, use get_replica_standards.
 When you need the correct local directory name for a planned page, use resolve_replica_directory_name.
+Maintain or create a local replica at `./{space_name}-replica/` when the client workflow allows it, because the remote surface is read-only.
+Use get_replica_structure as the source for the initial local replica layout and for refreshing existing remote-backed replica content.
+Use get_replica_standards together with resolve_replica_directory_name for local-only documentation additions that do not yet exist on remote.
 Use the returned space_id for list_pages and get_page.
 Pages are always space-scoped: use space_id together with page_id, and use space_id for page listing.
 Treat text_content as normalized plain text, not authoritative rich formatting.
 If the user refers to docs, documented behavior, page names, or project guidance not fully present in the prompt, consult this server before guessing.
-Maintain or create a local replica of retrieved documentation when the client workflow allows it, because the remote surface is read-only.
 If newer local replica changes exist, treat the local replica as the working source of truth until a human syncs those changes back to remote Docmost.
+When local replica files are edited, identify which local replica files changed, identify which remote page each file corresponds to when available, and tell the user to sync those local changes back to remote Docmost manually.
+Use the replica tree mapping and page metadata to relate local files back to remote pages instead of guessing.
 After local-only documentation edits, remote Docmost may be stale or effectively deprecated until manual sync occurs.
 If content looks stale, deprecated, or inconsistent with newer verified behavior, say so explicitly.
 If requested data is missing, report that explicitly instead of inferring it.
@@ -509,7 +524,7 @@ Recommended meaning of those tools in Copilot CLI:
 - `get_space_tree`: preferred structure-discovery step for nested page relationships in a space
 - `get_replica_standards`: policy source for local replica naming, files, and sync behavior
 - `resolve_replica_directory_name`: naming helper for local-only planned pages
-- `get_replica_structure`: preferred local-layout projection for replica creation and refresh
+- `get_replica_structure`: preferred local-layout projection for initial replica creation and refresh of existing remote-backed content
 - `list_pages`: flat page listing for follow-up inspection or lookup
 - `get_page`: final page fetch once both `space_id` and `page_id` are known
 
@@ -605,11 +620,13 @@ Treat it as read-only.
 If docs, documented behavior, page names, or relevant paths are mentioned without full context in the prompt, consult docmost-mcp before guessing.
 Always start by identifying the correct Docmost space before looking up pages.
 Use get_space_tree when you need to understand nested documentation structure quickly.
-Use get_replica_structure when you need the exact local replica layout for an existing space.
+Maintain or create a local replica at `./{space_name}-replica/` when needed, because the remote Docmost surface is read-only.
+Use get_replica_structure when you need the exact local replica layout for an existing space or when building the initial replica from remote content.
 Use get_replica_standards when you need the replica naming, file, or sync rules.
 Use resolve_replica_directory_name when creating a new local-only page directory.
-Create and maintain a local replica of retrieved documentation when needed, because the remote Docmost surface is read-only.
+Use the replica tree mapping plus `_meta.json` to relate local replica files back to remote pages.
 If newer local replica changes exist, treat the local replica as the working source of truth until the user syncs it back to remote.
+If local replica files are edited, identify the changed local file paths, identify the corresponding remote pages when available, and tell the user those specific changes still need manual sync back to remote.
 After local-only documentation edits, remote Docmost may be stale or effectively deprecated until manual sync occurs.
 Treat page content as possibly stale and call out deprecated or old material explicitly when you see it.
 Do not use it for unrelated repositories or unrelated tasks.
@@ -628,10 +645,12 @@ Treat the server as read-only.
 If documentation, documented behavior, page names, or relevant file/path references are mentioned without full context in the prompt, consult docmost-mcp before guessing.
 Resolve the correct space first, then inspect pages within that space.
 Use get_space_tree for nested documentation structure before falling back to manual page-by-page reconstruction.
-Use get_replica_structure for the exact local replica layout of an existing space.
+Maintain or create a local replica at `./{space_name}-replica/` when needed, since the remote Docmost surface is read-only.
+Use get_replica_structure for the exact local replica layout of an existing space and for initial replica creation from remote content.
 Use get_replica_standards and resolve_replica_directory_name for local-only documentation additions that do not yet exist on remote.
-Create and maintain a local replica of retrieved documentation when needed, since the remote Docmost surface is read-only.
+Use the replica tree mapping plus `_meta.json` to relate local replica files back to remote pages.
 If newer local replica changes exist, treat the local replica as the working source of truth until the user syncs it back to remote.
+If local replica files are edited, identify the changed local file paths, identify the corresponding remote pages when available, and tell the user those changes still need manual sync back to remote.
 Treat remote Docmost as potentially stale after local-only edits until manual sync occurs.
 If a page appears deprecated or stale relative to verified current behavior, say that explicitly.
 Do not use the Docmost MCP server in unrelated repositories.
@@ -675,10 +694,12 @@ If documentation, documented behavior, page names, or relevant file/path referen
 Always resolve the correct space first, then inspect pages within that space.
 Pages are space-scoped and are not global lookups.
 Use get_space_tree when you need the nested structure of a space.
-Use get_replica_structure for the exact local replica layout of an existing space.
+Maintain or create a local replica at `./{space_name}-replica/` when needed, because the remote Docmost surface is read-only.
+Use get_replica_structure for the exact local replica layout of an existing space and for initial replica creation from remote content.
 Use get_replica_standards and resolve_replica_directory_name for local-only additions that are not yet present on remote.
-Create and maintain a local replica of retrieved documentation when needed, because the remote Docmost surface is read-only.
+Use the replica tree mapping plus `_meta.json` to relate local replica files back to remote pages.
 If newer local replica changes exist, treat the local replica as the working source of truth until the user syncs it back to remote.
+If local replica files are edited, identify the changed local file paths, identify the corresponding remote pages when available, and tell the user those changes still need manual sync back to remote.
 Treat remote Docmost as potentially stale after local-only edits until manual sync occurs.
 If a page appears stale, deprecated, or older than verified current behavior, say that explicitly.
 Prefer newer verified repo/runtime behavior over stale Docmost content when they conflict.
