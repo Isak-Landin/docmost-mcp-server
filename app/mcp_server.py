@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 from uuid import UUID
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.fastmcp.server import TransportSecuritySettings
 
 from app.db import DocmostConnectionError
 from app.docmost import (
@@ -55,10 +57,19 @@ If content looks stale, deprecated, or inconsistent with newer verified behavior
 If requested data is missing, report that explicitly instead of inferring it.
 """.strip()
 
+def _transport_security() -> TransportSecuritySettings:
+    raw = os.getenv("MCP_ALLOWED_HOSTS", "")
+    allowed = [h.strip() for h in raw.split(",") if h.strip()]
+    return TransportSecuritySettings(allowed_hosts=allowed) if allowed else TransportSecuritySettings(
+        enable_dns_rebinding_protection=False
+    )
+
+
 mcp = FastMCP(
     "Docmost MCP",
     instructions=SERVER_INSTRUCTIONS,
     json_response=True,
+    transport_security=_transport_security(),
 )
 
 
