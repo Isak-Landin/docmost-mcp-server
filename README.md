@@ -272,25 +272,35 @@ Example placeholder public URL:
 https://<YOUR_DOCMOST_MCP_HOST>/mcp
 ```
 
-## Copilot CLI setup
+## GitHub Copilot CLI setup
 
-Because the MCP endpoint is remote and container-hosted, your Copilot CLI machine
-does **not** need any local wrapper script for Docmost MCP.
+Because the MCP endpoint is remote and container-hosted, your GitHub Copilot CLI
+machine does **not** need any local wrapper script for Docmost MCP.
 
 Copilot CLI only needs a configured MCP server pointing at the remote URL.
 
-## Important scope behavior in Copilot CLI
+Copilot CLI already includes the GitHub MCP server by default. Docmost MCP is an
+additional remote MCP server you add to extend Copilot CLI with Docmost read access.
 
-Copilot CLI MCP configuration is generally stored in:
+## Important MCP scope behavior in Copilot CLI
+
+GitHub's Copilot CLI documentation states that configured MCP server details are
+stored by default in:
 
 ```text
 ~/.copilot/mcp-config.json
 ```
 
+That default location can be changed with:
+
+```text
+COPILOT_HOME
+```
+
 That means:
 
-- adding an MCP server is **not** normally a one-time per-session action
-- it usually persists across sessions for that local Copilot config
+- adding an MCP server is not a one-time per-session action
+- MCP server configuration persists across sessions for that Copilot config home
 - if you use your normal default Copilot config, the MCP server may be available in unrelated projects too
 
 ## Recommended safe setup for Docmost-only use
@@ -316,7 +326,13 @@ Inside Copilot CLI:
 /mcp add
 ```
 
-Add a remote HTTP MCP server with a placeholder URL like:
+Then:
+
+1. enter the remote MCP server details
+2. use <kbd>Tab</kbd> to move between fields
+3. press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save
+
+Use a remote HTTP MCP server with a placeholder URL like:
 
 ```text
 https://<YOUR_DOCMOST_MCP_HOST>/mcp
@@ -373,6 +389,10 @@ Example:
 }
 ```
 
+This JSON structure matches the documented `mcpServers` format for Copilot MCP
+configuration: the server name maps to an object with `type`, `url`, and an explicit
+`tools` allowlist.
+
 If you are using the isolated configuration approach, this file lives under that
 Copilot home instead, for example:
 
@@ -395,10 +415,10 @@ Do not use it for unrelated repositories or unrelated tasks.
 
 This is not a replacement for isolated config, but it improves behavior within the session.
 
-## Optional repository instructions for Docmost repositories
+## Optional Copilot CLI instructions for Docmost repositories
 
 If you work in one or more repositories that are specifically tied to Docmost content,
-you can also add repository instructions such as:
+you can also add Copilot instructions such as:
 
 ```md
 Use the docmost-mcp MCP server only for Docmost-related tasks in this repository.
@@ -406,10 +426,22 @@ Treat the server as read-only.
 Do not use the Docmost MCP server in unrelated repositories.
 ```
 
-That kind of instruction can live in:
+For GitHub Copilot CLI, repository-wide instructions can live in:
 
 ```text
 .github/copilot-instructions.md
+```
+
+Copilot CLI also supports path-specific instruction files in:
+
+```text
+.github/instructions/**/*.instructions.md
+```
+
+and user-level instructions in:
+
+```text
+$HOME/.copilot/copilot-instructions.md
 ```
 
 ## Updating the running service
