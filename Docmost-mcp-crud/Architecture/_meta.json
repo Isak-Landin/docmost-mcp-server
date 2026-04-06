@@ -1,5 +1,5 @@
 {
-  "id": null,
+  "id": "019d636e-c40c-7585-b839-c6d94cfffcf4",
   "title": "Architecture",
   "slug_id": null,
   "parent_page_id": null,
@@ -7,5 +7,6 @@
   "local_dir_path": "./Local-LLM-Helper-replica/Architecture",
   "content_file_path": "./Local-LLM-Helper-replica/Architecture/page.md",
   "meta_file_path": "./Local-LLM-Helper-replica/Architecture/_meta.json",
-  "source": "local-only"
+  "source": "remote",
+  "space_id": "019d636e-c35a-7933-8f7a-b2b16faac127"
 }

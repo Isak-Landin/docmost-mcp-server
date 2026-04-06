@@ -1,5 +1,5 @@
 {
-  "id": null,
+  "id": "019d636e-c557-7ae1-a6e3-3969af421e0f",
   "title": "MCP-Server",
   "slug_id": null,
   "parent_page_id": null,
@@ -7,5 +7,6 @@
   "local_dir_path": "./Local-LLM-Helper-replica/MCP Server",
   "content_file_path": "./Local-LLM-Helper-replica/MCP-Server/page.md",
   "meta_file_path": "./Local-LLM-Helper-replica/MCP-Server/_meta.json",
-  "source": "local-only"
+  "source": "remote",
+  "space_id": "019d636e-c35a-7933-8f7a-b2b16faac127"
 }

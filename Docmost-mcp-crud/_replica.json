@@ -2,6 +2,7 @@
   "space_id": "019bb995-f39f-7ea4-abbc-faabef896396",
   "space_name": "Local LLM Helper",
   "replica_root": "./Local-LLM-Helper-replica",
-  "source": "local-only",
-  "note": "Created from codebase analysis. Remote Docmost docs are deprecated. These docs reflect the current implementation of docmost-ai-standalone-software."
+  "source": "remote-synced",
+  "note": "Created from codebase analysis. Remote Docmost docs are deprecated. These docs reflect the current implementation of docmost-ai-standalone-software.",
+  "remote_space_id": "019d636e-c35a-7933-8f7a-b2b16faac127"
 }

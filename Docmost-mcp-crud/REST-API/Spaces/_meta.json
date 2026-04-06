@@ -1,11 +1,12 @@
 {
-  "id": null,
+  "id": "019d636e-c7dd-7502-b8ac-0afd635934f0",
   "title": "Spaces",
   "slug_id": null,
-  "parent_page_id": "REST-API",
+  "parent_page_id": "019d636e-c4f3-7e8b-9913-1cdf1f94f29c",
   "local_dir_name": "Spaces",
   "local_dir_path": "./Local-LLM-Helper-replica/REST-API/Spaces",
   "content_file_path": "./Local-LLM-Helper-replica/REST-API/Spaces/page.md",
   "meta_file_path": "./Local-LLM-Helper-replica/REST-API/Spaces/_meta.json",
-  "source": "local-only"
+  "source": "remote",
+  "space_id": "019d636e-c35a-7933-8f7a-b2b16faac127"
 }

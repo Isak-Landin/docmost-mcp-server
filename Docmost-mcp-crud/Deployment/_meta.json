@@ -1,5 +1,5 @@
 {
-  "id": null,
+  "id": "019d636e-c73b-79c7-a006-a92972d65252",
   "title": "Deployment",
   "slug_id": null,
   "parent_page_id": null,
@@ -7,5 +7,6 @@
   "local_dir_path": "./Local-LLM-Helper-replica/Deployment",
   "content_file_path": "./Local-LLM-Helper-replica/Deployment/page.md",
   "meta_file_path": "./Local-LLM-Helper-replica/Deployment/_meta.json",
-  "source": "local-only"
+  "source": "remote",
+  "space_id": "019d636e-c35a-7933-8f7a-b2b16faac127"
 }

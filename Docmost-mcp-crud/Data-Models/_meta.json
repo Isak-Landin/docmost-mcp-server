@@ -1,5 +1,5 @@
 {
-  "id": null,
+  "id": "019d636e-c673-7fe3-be2d-e85d05ff6021",
   "title": "Data-Models",
   "slug_id": null,
   "parent_page_id": null,
@@ -7,5 +7,6 @@
   "local_dir_path": "./Local-LLM-Helper-replica/Data Models",
   "content_file_path": "./Local-LLM-Helper-replica/Data-Models/page.md",
   "meta_file_path": "./Local-LLM-Helper-replica/Data-Models/_meta.json",
-  "source": "local-only"
+  "source": "remote",
+  "space_id": "019d636e-c35a-7933-8f7a-b2b16faac127"
 }

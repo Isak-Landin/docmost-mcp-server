@@ -1,5 +1,5 @@
 {
-  "id": null,
+  "id": "019d636e-c4f3-7e8b-9913-1cdf1f94f29c",
   "title": "REST-API",
   "slug_id": null,
   "parent_page_id": null,
@@ -7,5 +7,6 @@
   "local_dir_path": "./Local-LLM-Helper-replica/REST API",
   "content_file_path": "./Local-LLM-Helper-replica/REST-API/page.md",
   "meta_file_path": "./Local-LLM-Helper-replica/REST-API/_meta.json",
-  "source": "local-only"
+  "source": "remote",
+  "space_id": "019d636e-c35a-7933-8f7a-b2b16faac127"
 }

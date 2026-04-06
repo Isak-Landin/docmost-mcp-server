@@ -1,5 +1,5 @@
 {
-  "id": null,
+  "id": "019d636e-c5bf-72bc-9198-462f5eeabdcc",
   "title": "Replica-System",
   "slug_id": null,
   "parent_page_id": null,
@@ -7,5 +7,6 @@
   "local_dir_path": "./Local-LLM-Helper-replica/Replica System",
   "content_file_path": "./Local-LLM-Helper-replica/Replica-System/page.md",
   "meta_file_path": "./Local-LLM-Helper-replica/Replica-System/_meta.json",
-  "source": "local-only"
+  "source": "remote",
+  "space_id": "019d636e-c35a-7933-8f7a-b2b16faac127"
 }
