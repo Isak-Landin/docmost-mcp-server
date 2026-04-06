@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 from app.models import DeletedOut, PageCreateIn, PageOut, PageUpdateIn
 from app.write.docmost import create_page as docmost_create_page
 from app.write.docmost import delete_page as docmost_delete_page
-from app.write.docmost import get_page_markdown
+from app.write.docmost import get_page_info
 from app.write.docmost import update_page as docmost_update_page
 
 router = APIRouter(prefix="/spaces/{space_id}/pages", tags=["pages"])
@@ -46,7 +46,7 @@ def create_page(space_id: UUID, body: PageCreateIn):
         raise HTTPException(status_code=502, detail=f"Docmost create did not return a page id. Response: {data}")
 
     try:
-        full = get_page_markdown(page_id)
+        full = get_page_info(page_id)
     except Exception:
         full = data
 
@@ -83,7 +83,7 @@ def update_page(space_id: UUID, page_id: UUID, body: PageUpdateIn):
         _raise_for_docmost_error(exc)
 
     try:
-        full = get_page_markdown(str(page_id))
+        full = get_page_info(str(page_id))
     except Exception as exc:
         _raise_for_docmost_error(exc)
 
@@ -130,10 +130,17 @@ def _raise_for_docmost_error(exc: Exception) -> None:
 
 
 def _map_page(data: dict) -> PageOut:
-    """Map a Docmost page response dict to PageOut."""
+    """Map a Docmost page response dict to PageOut, converting content to markdown."""
     from datetime import datetime
+    from app.query.prosemirror import prosemirror_to_markdown
 
     page = data.get("page", data)
+
+    raw_content = page.get("content")
+    if isinstance(raw_content, dict):
+        content = prosemirror_to_markdown(raw_content)
+    else:
+        content = raw_content
 
     return PageOut(
         id=page["id"],
@@ -147,7 +154,7 @@ def _map_page(data: dict) -> PageOut:
         space_id=page.get("spaceId") or page.get("space_id"),
         workspace_id=page.get("workspaceId") or page.get("workspace_id"),
         is_locked=page.get("isLocked") or page.get("is_locked") or False,
-        content=page.get("content"),
+        content=content,
         created_at=page.get("createdAt") or page.get("created_at") or datetime.utcnow(),
         updated_at=page.get("updatedAt") or page.get("updated_at") or datetime.utcnow(),
     )

@@ -156,16 +156,17 @@ def delete_page(page_id: str) -> dict[str, Any]:
     return _post("/api/pages/delete", {"pageId": page_id})
 
 
-def get_page_markdown(page_id: str) -> dict[str, Any]:
-    """Fetch a page with its content rendered as markdown.
+def get_page_info(page_id: str) -> dict[str, Any]:
+    """Fetch a page with its raw ProseMirror JSON content from Docmost REST.
 
-    Uses ``POST /api/pages/info`` with ``format=markdown`` so the content
-    is converted server-side from ProseMirror JSON — not the raw DB blob.
+    Uses ``POST /api/pages/info`` with ``includeContent=true``.
+    Docmost returns ``content`` as a ProseMirror JSON object — callers are
+    responsible for converting it to the desired output format.
 
     Args:
         page_id: UUID of the page to fetch.
 
     Returns:
-        The page object with ``content`` as a markdown string.
+        The page object with ``content`` as a ProseMirror JSON dict.
     """
-    return _post("/api/pages/info", {"pageId": page_id, "format": "markdown"})
+    return _post("/api/pages/info", {"pageId": page_id, "includeContent": True})

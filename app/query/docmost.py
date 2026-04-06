@@ -162,17 +162,24 @@ def list_pages(space_id: UUID) -> list[PageOut]:
 
 def get_page(space_id: UUID, page_id: UUID) -> PageOut:
     """Return a page with its content as markdown, fetched via Docmost REST."""
-    from app.write.docmost import get_page_markdown
+    from app.write.docmost import get_page_info
+    from app.query.prosemirror import prosemirror_to_markdown
 
     with get_conn() as conn:
         with conn.cursor() as cur:
             _assert_space_exists(cur, space_id)
             _assert_page_in_space(cur, page_id, space_id)
 
-    data = get_page_markdown(str(page_id))
+    data = get_page_info(str(page_id))
     page = data.get("page", data)
 
     from datetime import datetime as _dt
+
+    raw_content = page.get("content")
+    if isinstance(raw_content, dict):
+        content = prosemirror_to_markdown(raw_content)
+    else:
+        content = raw_content
 
     return PageOut(
         id=page["id"],
@@ -186,7 +193,7 @@ def get_page(space_id: UUID, page_id: UUID) -> PageOut:
         space_id=page.get("spaceId") or page.get("space_id") or str(space_id),
         workspace_id=page.get("workspaceId") or page.get("workspace_id") or "",
         is_locked=page.get("isLocked") or page.get("is_locked") or False,
-        content=page.get("content"),
+        content=content,
         created_at=page.get("createdAt") or page.get("created_at") or _dt.utcnow(),
         updated_at=page.get("updatedAt") or page.get("updated_at") or _dt.utcnow(),
     )
