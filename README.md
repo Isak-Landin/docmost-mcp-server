@@ -13,11 +13,25 @@ live Docmost stack, while being reachable from a separate machine running Copilo
 
 Before setup, make sure you have:
 
-1. a running Docmost environment with PostgreSQL
+1. a running Docmost environment with PostgreSQL — **v0.71.1 or later required** for content write operations to function correctly (see note below)
 2. Docker and Docker Compose available on the server where this service will run
 3. network access from this service container to the live Docmost PostgreSQL container
 4. network access from your Copilot CLI machine to the published Docmost MCP URL
 5. the Docmost database credentials or DSN
+
+> **Docmost version requirement — v0.71.1+**
+>
+> Docmost's `ValidationPipe` is configured with `whitelist: true`, which strips any undeclared
+> fields from incoming request bodies. In versions prior to v0.71.1, the `CreatePageDto` and
+> `UpdatePageDto` did not declare `content` or `format`, so those fields were silently discarded
+> and pages were always created empty.
+>
+> From v0.71.1 onward both fields are declared and fully supported. This version was confirmed
+> working in direct testing. To check the version running on your Docmost host:
+>
+> ```bash
+> docker exec docmost cat /app/apps/server/package.json | grep '"version"' | head -1
+> ```
 
 ## Full setup from start to finish
 

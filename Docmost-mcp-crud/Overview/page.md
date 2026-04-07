@@ -13,7 +13,8 @@ It is designed to run as a container on the same server and Docker network as th
 
 ## Key characteristics
 
-- **Strictly read-only** — no create, update, move, or delete operations on any Docmost entity
+- **Strictly read-only (via MCP)** — MCP tools expose no create, update, move, or delete operations
+- **Write-capable via REST** — the service exposes write routes (`POST /spaces/{id}/pages`, etc.) that pass through to the Docmost REST API; requires Docmost **v0.71.1 or later** (see [Deployment](../Deployment/page.md))
 - **Space-scoped** — pages are always queried within a space; there is no global page lookup
 - **Normalized text** — `text_content` returned by the API has repeated newline runs and `+` storage noise collapsed before delivery
 - **Explicit not-found errors** — if data does not exist the service returns a clear error; it never invents structure

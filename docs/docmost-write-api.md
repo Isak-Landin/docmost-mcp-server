@@ -2,7 +2,21 @@
 
 This document covers how to programmatically create and update Docmost pages from this service.
 It reflects findings from direct inspection of the running Docmost container's compiled source.
-Some details may become inaccurate once tested — update accordingly.
+
+## Version requirement
+
+**Docmost v0.71.1 or later is required for content writes to work.**
+
+In older versions, `CreatePageDto` and `UpdatePageDto` did not declare `content` or `format`.
+NestJS `ValidationPipe({ whitelist: true })` strips undeclared fields, so content was silently
+discarded and pages were always created empty. From v0.71.1 both fields are declared and
+fully supported. This was confirmed by direct container source inspection and live testing.
+
+To check the Docmost version on your host:
+
+```bash
+docker exec docmost cat /app/apps/server/package.json | grep '"version"' | head -1
+```
 
 ---
 

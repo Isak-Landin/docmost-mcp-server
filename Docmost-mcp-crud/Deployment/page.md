@@ -4,6 +4,25 @@
 
 The service is deployed as a Docker container on the same server as the live Docmost stack, joined to the same Docker network so it can reach the Docmost PostgreSQL container.
 
+## Docmost version requirement
+
+**Docmost v0.71.1 or later is required for content write operations to work.**
+
+In older versions, `CreatePageDto` and `UpdatePageDto` did not declare `content` or `format`. NestJS `ValidationPipe({ whitelist: true })` strips undeclared fields silently, so page content was always discarded. From v0.71.1 both fields are fully declared and supported.
+
+To check the version running on your Docmost host:
+
+```bash
+docker exec docmost cat /app/apps/server/package.json | grep '"version"' | head -1
+```
+
+To update Docmost safely (no volume loss):
+
+```bash
+docker compose pull docmost
+docker compose up -d --no-deps docmost
+```
+
 ## Docker Compose
 
 `docker-compose.yml` defines one service: `docmost-mcp`.
