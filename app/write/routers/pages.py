@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
-from app.models import DeletedOut, PageCreateIn, PageOut, PageUpdateIn
+from app.models import DeletedOut, PageCreateIn, PageMetaOut, PageUpdateIn
 from app.write.docmost import create_page as docmost_create_page
 from app.write.docmost import delete_page as docmost_delete_page
 from app.write.docmost import get_page_info
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/spaces/{space_id}/pages", tags=["pages"])
 
 @router.post(
     "",
-    response_model=PageOut,
+    response_model=PageMetaOut,
     status_code=201,
     summary="Create a page",
     description=(
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/spaces/{space_id}/pages", tags=["pages"])
         "Provide `parent_page_id` to create a child page nested under an existing page — "
         "arbitrarily deep hierarchies are supported. "
         "Content is accepted as **markdown** and converted server-side. "
-        "The created page is returned with its full markdown content. "
+        "Returns page identity and metadata. Content is not echoed back. "
         "Authentication is handled transparently."
     ),
     responses={
@@ -41,21 +41,17 @@ def create_page(space_id: UUID, body: PageCreateIn):
     except Exception as exc:
         _raise_for_docmost_error(exc)
 
-    page_id = data.get("id") or (data.get("page", {}) or {}).get("id")
+    page = data.get("page", data)
+    page_id = page.get("id")
     if not page_id:
         raise HTTPException(status_code=502, detail=f"Docmost create did not return a page id. Response: {data}")
 
-    try:
-        full = get_page_info(page_id)
-    except Exception:
-        full = data
-
-    return _map_page(full)
+    return _map_page_meta(page)
 
 
 @router.put(
     "/{page_id}",
-    response_model=PageOut,
+    response_model=PageMetaOut,
     summary="Update a page",
     description=(
         "Updates an existing page's title and/or content. "
@@ -63,6 +59,7 @@ def create_page(space_id: UUID, body: PageCreateIn):
         "Use `operation='replace'` (default) to overwrite, `'append'` to add after existing "
         "content, or `'prepend'` to add before. "
         "Prefer update over delete+create — Docmost preserves page history on update. "
+        "Returns page identity and metadata. Content is not echoed back. "
         "Authentication is handled transparently."
     ),
     responses={
@@ -87,7 +84,7 @@ def update_page(space_id: UUID, page_id: UUID, body: PageUpdateIn):
     except Exception as exc:
         _raise_for_docmost_error(exc)
 
-    return _map_page(full)
+    return _map_page_meta(full.get("page", full))
 
 
 @router.delete(
@@ -129,20 +126,11 @@ def _raise_for_docmost_error(exc: Exception) -> None:
     raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-def _map_page(data: dict) -> PageOut:
-    """Map a Docmost page response dict to PageOut, converting content to markdown."""
+def _map_page_meta(page: dict) -> PageMetaOut:
+    """Map a Docmost page response dict to PageMetaOut (no content)."""
     from datetime import datetime
-    from app.query.prosemirror import prosemirror_to_markdown
 
-    page = data.get("page", data)
-
-    raw_content = page.get("content")
-    if isinstance(raw_content, dict):
-        content = prosemirror_to_markdown(raw_content)
-    else:
-        content = raw_content
-
-    return PageOut(
+    return PageMetaOut(
         id=page["id"],
         slug_id=page.get("slugId") or page.get("slug_id") or "",
         title=page.get("title"),
@@ -154,7 +142,6 @@ def _map_page(data: dict) -> PageOut:
         space_id=page.get("spaceId") or page.get("space_id"),
         workspace_id=page.get("workspaceId") or page.get("workspace_id"),
         is_locked=page.get("isLocked") or page.get("is_locked") or False,
-        content=content,
         created_at=page.get("createdAt") or page.get("created_at") or datetime.utcnow(),
         updated_at=page.get("updatedAt") or page.get("updated_at") or datetime.utcnow(),
     )
