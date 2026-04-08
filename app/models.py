@@ -48,6 +48,26 @@ class PageOut(BaseModel):
     model_config = {"from_attributes": True, "populate_by_name": True}
 
 
+class PageMetaOut(BaseModel):
+    """Page identity and metadata only - no content. Used for write operation responses."""
+
+    id: UUID = Field(description="Page UUID")
+    slug_id: str = Field(description="Short URL-friendly identifier")
+    title: Optional[str] = Field(None, description="Page title")
+    icon: Optional[str] = Field(None, description="Emoji or icon identifier")
+    position: Optional[str] = Field(None, description="Sort position within the parent")
+    parent_page_id: Optional[UUID] = Field(None, description="UUID of the parent page, or null for root pages")
+    creator_id: Optional[UUID] = Field(None, description="UUID of the user who created the page")
+    last_updated_by_id: Optional[UUID] = Field(None, description="UUID of the user who last updated the page")
+    space_id: UUID = Field(description="UUID of the space this page belongs to")
+    workspace_id: UUID = Field(description="UUID of the parent workspace")
+    is_locked: bool = Field(description="Whether the page is locked for editing")
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
+
+
 class SpaceSummaryOut(BaseModel):
     id: UUID = Field(description="Space UUID")
     name: Optional[str] = Field(None, description="Display name of the space")
