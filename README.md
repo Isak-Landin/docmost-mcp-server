@@ -1,13 +1,56 @@
 # Docmost MCP
 
-Docmost MCP is a service that connects directly to a live Docmost PostgreSQL
-database and exposes that content through:
+Docmost MCP runs alongside a live Docmost deployment on the same Docker network,
+connects directly to the Docmost PostgreSQL database, and exposes that content
+through both a remote MCP endpoint for agents and a REST API for conventional
+HTTP integrations.
 
-- a REST API for conventional HTTP read and write access
-- a remote MCP endpoint for GitHub Copilot CLI and other MCP-compatible clients
+It is designed for the common setup where Docmost stays containerized on one
+server while GitHub Copilot CLI or another MCP-compatible client connects from a
+different machine.
 
-It is designed to run as a container on the same server and Docker network as the
-live Docmost stack, while being reachable from a separate machine running Copilot CLI.
+## MCP capabilities
+
+The `/mcp` endpoint gives GitHub Copilot CLI and other MCP-compatible clients a
+remote Docmost toolset over streamable HTTP.
+
+| Capability | Tools |
+|---|---|
+| Resolve the correct Docmost space | `list_spaces`, `get_space` |
+| Inspect hierarchy and page listings | `get_space_tree`, `list_pages` |
+| Read full page content as markdown | `get_page` |
+| Inspect replica rules and layout | `get_replica_standards`, `resolve_replica_directory_name`, `get_replica_structure` |
+| Create or delete spaces | `create_space`, `delete_space` |
+| Create, update, or delete pages | `create_page`, `update_page`, `delete_page` |
+
+All page content is markdown in and markdown out.
+
+## REST capabilities
+
+The REST API exposes the same core access patterns over HTTP for direct
+integrations, manual inspection, and non-MCP automation.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | process health check only; does not verify database connectivity |
+| `GET` | `/spaces` | list all non-deleted spaces |
+| `GET` | `/spaces/{space_id}` | get one non-deleted space |
+| `GET` | `/spaces/{space_id}/tree` | get the nested page tree for one space |
+| `GET` | `/spaces/{space_id}/replica-structure` | get the deterministic local replica layout for one space |
+| `GET` | `/spaces/{space_id}/pages` | list all non-deleted pages in a space (no content) |
+| `GET` | `/spaces/{space_id}/pages/{page_id}` | get one page with full markdown content |
+| `GET` | `/replica/standards` | get local replica naming, structure, and sync rules |
+| `GET` | `/replica/resolve-directory-name` | resolve the correct local directory name for a page title |
+| `POST` | `/spaces` | create a new space |
+| `DELETE` | `/spaces/{space_id}` | permanently delete a space and all its pages |
+| `POST` | `/spaces/{space_id}/pages` | create a page (add `parent_page_id` for a child page) |
+| `PUT` | `/spaces/{space_id}/pages/{page_id}` | update a page title and/or content (markdown) |
+| `DELETE` | `/spaces/{space_id}/pages/{page_id}` | soft-delete a page |
+
+Write routes authenticate against Docmost automatically using
+`DOCMOST_APP_URL`, `DOCMOST_USER_EMAIL`, and `DOCMOST_USER_PASSWORD` from
+`.env`. Content is markdown in and out, and the update route supports
+`operation: replace | append | prepend`.
 
 ## Prerequisites
 
@@ -284,20 +327,11 @@ To inspect replica naming and sync rules without a space-specific lookup, use:
 http://<YOUR_DOCMOST_MCP_HOST>:8099/replica/standards
 ```
 
-#### Write endpoints (require `DOCMOST_APP_URL` + `DOCMOST_USER_*` in `.env`)
+#### Write endpoints
 
-Auth is transparent - all write routes log in automatically on first use.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/spaces` | Create a space |
-| `DELETE` | `/spaces/{space_id}` | Delete a space permanently |
-| `POST` | `/spaces/{space_id}/pages` | Create a page (add `parent_page_id` for a child page) |
-| `PUT` | `/spaces/{space_id}/pages/{page_id}` | Update a page title and/or content |
-| `DELETE` | `/spaces/{space_id}/pages/{page_id}` | Delete a page (soft-delete) |
-
-All content fields accept and return **markdown**.
-Use `operation: replace | append | prepend` on the update endpoint to control how content is applied.
+Write routes require `DOCMOST_APP_URL` plus `DOCMOST_USER_*` in `.env`.
+Authentication is transparent, and the full route list is in
+[REST capabilities](#rest-capabilities).
 
 ### 8. Optional: place behind HTTPS or a reverse proxy
 
@@ -643,58 +677,6 @@ You still need valid Docmost database connectivity through the configured env va
 If your `.env` uses a Docker-only hostname such as `db`, that local run will fail unless
 your machine can resolve that hostname. For non-Docker local runs, set `DOCMOST_DB_HOST`
 or `DOCMOST_DB_URL` to a database address reachable from the host machine.
-
-## What this project does
-
-This service exposes:
-
-| Surface | Path | Purpose |
-|---|---|---|
-| REST API (read) | `/health`, `/spaces`, `/spaces/{space_id}`, `/spaces/{space_id}/tree`, `/spaces/{space_id}/replica-structure`, `/spaces/{space_id}/pages`, `/spaces/{space_id}/pages/{page_id}`, `/replica/standards`, `/replica/resolve-directory-name` | HTTP access to spaces, trees, replica structure, replica standards, and pages |
-| REST API (write) | `POST /spaces`, `DELETE /spaces/{space_id}`, `POST /spaces/{space_id}/pages`, `PUT /spaces/{space_id}/pages/{page_id}`, `DELETE /spaces/{space_id}/pages/{page_id}` | Create, update, and delete spaces and pages via Docmost REST API |
-| MCP | `/mcp` | Remote streamable HTTP MCP endpoint |
-
-## Exposed REST routes
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/health` | process health check only; does not verify database connectivity |
-| `GET` | `/spaces` | list all non-deleted spaces |
-| `GET` | `/spaces/{space_id}` | get one non-deleted space |
-| `GET` | `/spaces/{space_id}/tree` | get the nested page tree for one space |
-| `GET` | `/spaces/{space_id}/replica-structure` | get the deterministic local replica layout for one space |
-| `GET` | `/spaces/{space_id}/pages` | list all non-deleted pages in a space (no content) |
-| `GET` | `/spaces/{space_id}/pages/{page_id}` | get one page with full markdown content |
-| `GET` | `/replica/standards` | get local replica naming, structure, and sync rules |
-| `GET` | `/replica/resolve-directory-name` | resolve the correct local directory name for a page title |
-| `POST` | `/spaces` | create a new space |
-| `DELETE` | `/spaces/{space_id}` | permanently delete a space and all its pages |
-| `POST` | `/spaces/{space_id}/pages` | create a page (add `parent_page_id` for a child page) |
-| `PUT` | `/spaces/{space_id}/pages/{page_id}` | update a page title and/or content (markdown) |
-| `DELETE` | `/spaces/{space_id}/pages/{page_id}` | soft-delete a page |
-
-Write routes authenticate against Docmost automatically using `DOCMOST_APP_URL`, `DOCMOST_USER_EMAIL`, and `DOCMOST_USER_PASSWORD` from `.env`. No auth call is needed before any write request.
-
-All content accepted by write routes is **markdown**. Write routes do not echo content back - they return page identity and metadata only. Use `GET /spaces/{space_id}/pages/{page_id}` to read content back if needed.
-
-Use `operation: replace | append | prepend` on the update endpoint to control how content is applied. Default is `replace`.
-## Exposed MCP tools
-
-| Tool | Description |
-|---|---|
-| `list_spaces` | list all non-deleted spaces |
-| `get_space` | get one space by UUID |
-| `get_space_tree` | get the nested page tree for one space |
-| `list_pages` | list all pages in a space (no content) |
-| `get_page` | get one page by UUID inside a space, with full markdown content |
-| `get_replica_standards` | get local replica naming, structure, and sync rules |
-| `resolve_replica_directory_name` | resolve the correct local directory name for a page title |
-| `get_replica_structure` | get the deterministic local replica layout for one space |
-| `create_space` | create a new space (slug must be alphanumeric, no dashes) |
-| `delete_space` | permanently delete a space - explicit user instruction required |
-| `create_page` | create a page; pass `parent_page_id` for arbitrarily deep nesting |
-| `update_page` | update a page title and/or content; supports replace/append/prepend |
-| `delete_page` | soft-delete a page - only when user has confirmed removal |
 
 ## Intended lookup and write flow
 
